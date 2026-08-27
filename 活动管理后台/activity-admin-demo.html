@@ -1,0 +1,1791 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>活动管理后台</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #f0f2f5; color: #333; font-size: 14px; }
+
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar { width: 220px; background: #001529; color: #fff; flex-shrink: 0; position: fixed; top: 0; bottom: 0; z-index: 100; }
+  .sidebar-header { padding: 20px 16px; font-size: 16px; font-weight: 700; border-bottom: 1px solid #0d2137; display: flex; align-items: center; gap: 10px; }
+  .sidebar-menu { padding: 8px 0; }
+  .menu-item { padding: 12px 24px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 10px; color: rgba(255,255,255,0.65); user-select: none; }
+  .menu-item:hover { color: #fff; background: rgba(255,255,255,0.08); }
+  .menu-item.active { color: #fff; background: #1890ff; }
+  .menu-icon { font-size: 16px; width: 20px; text-align: center; }
+  .main { flex: 1; margin-left: 220px; display: flex; flex-direction: column; min-height: 100vh; }
+  .header { height: 56px; background: #fff; border-bottom: 1px solid #e8e8e8; display: flex; align-items: center; padding: 0 24px; justify-content: space-between; box-shadow: 0 1px 4px rgba(0,0,0,0.06); position: sticky; top: 0; z-index: 50; }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .header-back { cursor: pointer; font-size: 18px; color: #8c8c8c; display: none; padding: 4px 8px; border-radius: 4px; }
+  .header-back:hover { background: #f5f5f5; color: #333; }
+  .header-title { font-size: 16px; font-weight: 600; }
+  .header-right { display: flex; align-items: center; gap: 16px; color: #8c8c8c; }
+  .content { flex: 1; padding: 24px; overflow-y: auto; }
+
+  .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 16px; }
+  .card-header { padding: 16px 20px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between; }
+  .card-header h3 { font-size: 15px; font-weight: 600; }
+  .card-body { padding: 20px; }
+  .info-box { background: #e6f7ff; border: 1px solid #91d5ff; border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; color: #0050b3; font-size: 13px; display: flex; align-items: flex-start; gap: 8px; line-height: 1.6; }
+  .info-box.warn { background: #fff7e6; border-color: #ffd591; color: #ad6800; }
+  .info-box.purple { background: #f9f0ff; border-color: #d3adf7; color: #531dab; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .stat-sub { font-size:12px; color:#8c8c8c; margin-top:4px; }
+.stat-card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .stat-label { color: #8c8c8c; font-size: 13px; margin-bottom: 8px; }
+  .stat-value { font-size: 28px; font-weight: 700; }
+  .stat-value.blue { color: #1890ff; }
+  .stat-value.green { color: #52c41a; }
+  .stat-value.orange { color: #fa8c16; }
+  .stat-value.red { color: #f5222d; }
+
+  .table-wrapper { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #fafafa; font-weight: 600; text-align: left; padding: 12px 16px; border-bottom: 1px solid #f0f0f0; white-space: nowrap; font-size: 13px; color: #595959; }
+  td { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; }
+  tr:hover td { background: #fafafa; }
+  tr.clickable { cursor: pointer; }
+
+  .tag { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; line-height: 1.6; }
+  .tag-green { background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+  .tag-red { background: #fff2f0; color: #f5222d; border: 1px solid #ffccc7; }
+  .tag-blue { background: #e6f7ff; color: #1890ff; border: 1px solid #91d5ff; }
+  .tag-orange { background: #fff7e6; color: #fa8c16; border: 1px solid #ffd591; }
+  .tag-gray { background: #f5f5f5; color: #8c8c8c; border: 1px solid #d9d9d9; }
+  .tag-purple { background: #f9f0ff; color: #722ed1; border: 1px solid #d3adf7; }
+  .tag-cyan { background: #e6fffb; color: #13c2c2; border: 1px solid #87e8de; }
+
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 6px; border: 1px solid #d9d9d9; background: #fff; cursor: pointer; font-size: 13px; transition: all 0.2s; font-family: inherit; white-space: nowrap; }
+  .btn:hover { border-color: #40a9ff; color: #40a9ff; }
+  .btn-primary { background: #1890ff; color: #fff; border-color: #1890ff; }
+  .btn-primary:hover { background: #40a9ff; border-color: #40a9ff; color: #fff; }
+  .btn-danger { color: #f5222d; border-color: #f5222d; }
+  .btn-danger:hover { background: #fff2f0; }
+  .btn-outline { background: transparent; border: 1px solid #d9d9d9; color: #595959; }
+  .btn-outline:hover { border-color: #1890ff; color: #1890ff; }
+  .btn-success { background: #f6ffed; border-color: #b7eb8f; color: #389e0d; }
+  .btn-success:hover { background: #d9f7be; border-color: #95de64; color: #237800; }
+  .btn-push { background: #fff7e6; border-color: #ffd591; color: #d46b08; }
+  .btn-push:hover { background: #fff1cc; border-color: #ffc53d; color: #ad4e00; }
+  .btn-sm { padding: 4px 12px; font-size: 12px; }
+  .btn-link { border: none; background: none; color: #1890ff; padding: 0; cursor: pointer; font-size: 13px; }
+  .btn-link:hover { color: #40a9ff; }
+  .btn-group { display: flex; gap: 8px; }
+
+  .form-row { display: flex; gap: 16px; margin-bottom: 20px; }
+  .form-item { flex: 1; }
+  .form-item-2 { flex: 2; }
+  .form-label { display: block; font-weight: 500; margin-bottom: 6px; color: #595959; font-size: 13px; }
+  .form-label .req { color: #f5222d; margin-left: 2px; }
+  .form-input, .form-select, .form-textarea {
+    width: 100%; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px;
+    font-size: 14px; transition: all 0.2s; outline: none; font-family: inherit; background: #fff;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.1); }
+  .form-textarea { min-height: 80px; resize: vertical; }
+  .reward-item-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; padding: 10px 12px; background: #fafafa; border-radius: 6px; border: 1px solid #f0f0f0; }
+  .reward-item-row select, .reward-item-row input { flex: 1; }
+  .reward-item-row .btn-danger { flex-shrink: 0; padding: 4px 10px; }
+  .form-hint { color: #8c8c8c; font-size: 12px; margin-top: 4px; }
+
+  .switch { position: relative; width: 40px; height: 22px; cursor: pointer; display: inline-block; flex-shrink: 0; }
+  .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .switch-track { position: absolute; inset: 0; background: #d9d9d9; border-radius: 11px; transition: 0.2s; cursor: pointer; }
+  .switch-track:before { content: ''; position: absolute; width: 18px; height: 18px; left: 2px; bottom: 2px; background: #fff; border-radius: 50%; transition: 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+  .switch input:checked + .switch-track { background: #1890ff; }
+  .switch input:checked + .switch-track:before { transform: translateX(18px); }
+
+  .tabs { display: flex; border-bottom: 1px solid #e8e8e8; margin-bottom: 0; gap: 0; }
+  .tab { padding: 12px 20px; cursor: pointer; border-bottom: 2px solid transparent; color: #8c8c8c; font-weight: 500; transition: all 0.2s; user-select: none; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  .tab:hover { color: #1890ff; }
+  .tab.active { color: #1890ff; border-bottom-color: #1890ff; }
+  .tab .tab-badge { background: #f0f0f0; color: #8c8c8c; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .tab.active .tab-badge { background: #e6f7ff; color: #1890ff; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .search-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .search-input { padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; width: 240px; outline: none; font-size: 14px; }
+  .search-input:focus { border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,0.1); }
+
+  .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  .modal-mask.show { opacity: 1; pointer-events: auto; }
+  .modal { background: #fff; border-radius: 10px; width: 700px; max-height: 85vh; box-shadow: 0 6px 30px rgba(0,0,0,0.2); transform: translateY(20px); transition: transform 0.2s; display: flex; flex-direction: column; overflow: hidden; }
+  .modal-mask.show .modal { transform: translateY(0); }
+  .modal-header { padding: 16px 24px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between; background: #fff; z-index: 1; border-radius: 10px 10px 0 0; flex-shrink: 0; }
+  .modal-header h3 { font-size: 16px; font-weight: 600; }
+  .modal-close { cursor: pointer; font-size: 18px; color: #8c8c8c; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 6px; }
+  .modal-close:hover { background: #f5f5f5; color: #333; }
+  .modal-body { padding: 24px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: flex-end; gap: 12px; background: #fff; border-radius: 0 0 10px 10px; box-shadow: 0 -2px 10px rgba(0,0,0,0.04); flex-shrink: 0; }
+  .modal-footer .btn { min-width: 92px; justify-content: center; padding: 9px 22px; font-size: 14px; font-weight: 500; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); transition: all 0.2s; }
+  .modal-footer .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+  .modal-footer .btn:not(.btn-primary) { background: #f5f5f5; border-color: #f0f0f0; color: #595959; }
+  .modal-footer .btn:not(.btn-primary):hover { background: #e8e8e8; border-color: #e8e8e8; color: #333; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .modal-footer .btn-primary { background: linear-gradient(135deg, #1890ff 0%, #40a9ff 100%); border: none; color: #fff; }
+  .modal-footer .btn-primary::before { content: '✓'; margin-right: 6px; font-weight: 700; }
+  .modal-footer .btn-primary:hover { background: linear-gradient(135deg, #40a9ff 0%, #69c0ff 100%); border-color: transparent; color: #fff; }
+
+  .page-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 16px 24px; background: #fff; border-top: 1px solid #f0f0f0; box-shadow: 0 -2px 10px rgba(0,0,0,0.04); border-radius: 0 0 10px 10px; position: sticky; bottom: 0; z-index: 2; }
+  .page-actions .btn { min-width: 92px; justify-content: center; padding: 9px 22px; font-size: 14px; font-weight: 500; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); transition: all 0.2s; }
+  .page-actions .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+  .page-actions .btn:not(.btn-primary) { background: #f5f5f5; border-color: #f0f0f0; color: #595959; }
+  .page-actions .btn:not(.btn-primary):hover { background: #e8e8e8; border-color: #e8e8e8; color: #333; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .page-actions .btn-primary { background: linear-gradient(135deg, #1890ff 0%, #40a9ff 100%); border: none; color: #fff; }
+  .page-actions .btn-primary::before { content: '✓'; margin-right: 6px; font-weight: 700; }
+  .page-actions .btn-primary:hover { background: linear-gradient(135deg, #40a9ff 0%, #69c0ff 100%); border-color: transparent; color: #fff; }
+
+  .task-card { border: 1px solid #f0f0f0; border-radius: 8px; padding: 16px 20px; margin-bottom: 12px; transition: all 0.2s; }
+  .task-card:hover { border-color: #d9d9d9; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .task-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .task-title { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .task-meta { display: flex; gap: 20px; font-size: 13px; color: #8c8c8c; margin-bottom: 10px; flex-wrap: wrap; }
+  .task-meta span { display: flex; align-items: center; gap: 4px; }
+  .task-reward-bar { background: #fafafa; border-radius: 6px; padding: 10px 14px; display: flex; gap: 12px; align-items: center; font-size: 13px; color: #595959; flex-wrap: wrap; }
+  .task-reward-bar .label { color: #8c8c8c; font-weight: 500; }
+  .task-actions { display: flex; align-items: center; gap: 10px; }
+
+  .ms-tabs { display: flex; gap: 0; border-bottom: 1px solid #f0f0f0; margin-bottom: 20px; }
+  .ms-tab { padding: 10px 20px; cursor: pointer; font-size: 13px; font-weight: 500; color: #8c8c8c; border-bottom: 2px solid transparent; transition: all 0.2s; user-select: none; }
+  .ms-tab:hover { color: #1890ff; }
+  .ms-tab.active { color: #1890ff; border-bottom-color: #1890ff; }
+  .ms-tab .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .ms-tab .dot.personal { background: #1890ff; }
+  .ms-tab .dot.team { background: #52c41a; }
+  .ms-tab .dot.server { background: #fa8c16; }
+
+  .ms-track { display: flex; align-items: flex-start; padding: 24px 0; overflow-x: auto; gap: 0; }
+  .ms-node { display: flex; flex-direction: column; align-items: center; z-index: 1; flex-shrink: 0; width: 100px; }
+  .ms-dot { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+  .ms-dot.done { background: #52c41a; color: #fff; }
+  .ms-dot.current { background: #1890ff; color: #fff; box-shadow: 0 0 0 4px rgba(24,144,255,0.15); }
+  .ms-dot.locked { background: #f0f0f0; color: #bfbfbf; }
+  .ms-pts { font-size: 14px; font-weight: 700; color: #fa8c16; margin-top: 10px; }
+  .ms-reward { font-size: 12px; color: #8c8c8c; margin-top: 4px; text-align: center; line-height: 1.5; }
+  .ms-line { flex-shrink: 0; width: 40px; height: 3px; margin-top: 17px; border-radius: 2px; background: #f0f0f0; }
+  .ms-line.done { background: #52c41a; }
+  .ms-line.active { background: linear-gradient(90deg, #52c41a 60%, #f0f0f0 100%); }
+
+  .empty-state { text-align: center; padding: 48px 20px; color: #bfbfbf; }
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-state .text { font-size: 14px; }
+
+  .point-dual { display: flex; gap: 16px; margin-bottom: 16px; }
+  .point-card { flex: 1; border-radius: 8px; padding: 16px; border: 1px solid #f0f0f0; }
+  .point-card.shop { border-color: #91d5ff; background: #e6f7ff; }
+  .point-card.ms { border-color: #ffd591; background: #fff7e6; }
+  .point-card .pc-label { font-size: 12px; color: #8c8c8c; margin-bottom: 4px; }
+  .point-card .pc-value { font-size: 20px; font-weight: 700; }
+  .point-card.shop .pc-value { color: #1890ff; }
+  .point-card.ms .pc-value { color: #fa8c16; }
+  .point-card .pc-desc { font-size: 12px; color: #8c8c8c; margin-top: 4px; }
+
+  /* Stats page */
+  .chart-bar-group { display: flex; align-items: flex-end; gap: 8px; height: 180px; padding: 0 8px; }
+  .chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .chart-bar { width: 100%; border-radius: 4px 4px 0 0; transition: height 0.6s ease; min-height: 2px; }
+  .chart-bar.blue { background: linear-gradient(180deg, #1890ff, #69c0ff); }
+  .chart-bar.green { background: linear-gradient(180deg, #52c41a, #95de64); }
+  .chart-bar.orange { background: linear-gradient(180deg, #fa8c16, #ffc069); }
+  .chart-bar.purple { background: linear-gradient(180deg, #722ed1, #b37feb); }
+  .chart-label { font-size: 11px; color: #8c8c8c; white-space: nowrap; }
+  .chart-val { font-size: 11px; color: #595959; font-weight: 600; }
+  .mini-trend { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; margin-left: 6px; }
+  .mini-trend.up { color: #52c41a; }
+  .mini-trend.down { color: #f5222d; }
+  .rank-list { list-style: none; }
+  .rank-item { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #f5f5f5; gap: 12px; }
+  .rank-item:last-child { border-bottom: none; }
+  .rank-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .rank-num.r1 { background: #fff1f0; color: #f5222d; }
+  .rank-num.r2 { background: #fff7e6; color: #fa8c16; }
+  .rank-num.r3 { background: #fff7e6; color: #fa8c16; }
+  .rank-num.rn { background: #f5f5f5; color: #8c8c8c; }
+  .rank-info { flex: 1; }
+  .rank-name { font-weight: 500; font-size: 13px; }
+  .rank-sub { font-size: 12px; color: #8c8c8c; margin-top: 2px; }
+  .rank-val { font-weight: 700; font-size: 14px; color: #262626; text-align: right; }
+  .kv-row { display: flex; padding: 10px 0; border-bottom: 1px solid #f5f5f5; font-size: 13px; }
+  .kv-row:last-child { border-bottom: none; }
+  .kv-label { color: #8c8c8c; width: 140px; flex-shrink: 0; }
+  .kv-value { font-weight: 500; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeIn 0.3s ease; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <div class="sidebar">
+    <div class="sidebar-header">🎮 活动管理后台</div>
+    <div class="sidebar-menu">
+      <div class="menu-item active" onclick="goList()"><span class="menu-icon">📋</span> 活动列表</div>
+      <div class="menu-item" onclick="goStats()"><span class="menu-icon">📊</span> 数据统计</div>
+      <div class="menu-item" style="opacity:0.4;pointer-events:none;"><span class="menu-icon">⚙️</span> 系统设置</div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="header">
+      <div class="header-left">
+        <div class="header-back" id="headerBack" onclick="goList()">← 返回</div>
+        <div class="header-title" id="pageTitle">活动列表</div>
+      </div>
+      <div class="header-right"><span>运营管理员</span><span>👑</span></div>
+    </div>
+    <div class="content">
+
+      <!-- ==================== 活动列表 ==================== -->
+      <div id="view-list" class="fade-in">
+        <div class="stats-row">
+          <div class="stat-card"><div class="stat-label">活跃活动</div><div class="stat-value blue">3</div></div>
+          <div class="stat-card"><div class="stat-label">今日参与人次</div><div class="stat-value green">12,847</div></div>
+          <div class="stat-card"><div class="stat-label">今日积分发放</div><div class="stat-value orange">256,800</div></div>
+          <div class="stat-card"><div class="stat-label">今日兑换次数</div><div class="stat-value red">3,421</div></div>
+        </div>
+        <div class="search-bar">
+          <input class="search-input" placeholder="搜索活动名称或ID..." id="listSearch" oninput="filterActivities()">
+          <select class="form-select" style="width:130px;" id="listStatusFilter" onchange="filterActivities()">
+            <option value="">全部状态</option><option value="已上线">已上线</option><option value="未上线">未上线</option><option value="已结束">已结束</option>
+          </select>
+          <div style="flex:1"></div>
+          <button class="btn btn-primary" onclick="showCreateActivity()">＋ 创建活动</button>
+        </div>
+        <div class="card"><div class="card-body" style="padding:0"><div class="table-wrapper">
+          <table><thead><tr><th>活动ID</th><th>活动名称</th><th>类型</th><th>状态</th><th>上线</th><th>白名单</th><th>开启时间</th><th>结束时间</th><th>刷新规则</th><th>任务数</th><th>操作</th><th>推送</th></tr></thead>
+          <tbody id="activityTableBody"></tbody></table>
+        </div></div></div>
+      </div>
+
+      <!-- ==================== 活动编辑 ==================== -->
+      <div id="view-edit" style="display:none;" class="fade-in">
+        <!-- 基本信息 -->
+        <div class="card">
+          <div class="card-header"><h3 id="editTitle">编辑活动</h3></div>
+          <div class="card-body">
+            <div class="form-row">
+              <div class="form-item"><label class="form-label">活动名称 <span class="req">*</span></label><input class="form-input" id="f_name"></div>
+              <div class="form-item"><label class="form-label">活动类型 <span class="req">*</span></label>
+                <select class="form-select" id="f_type"><option value="限时活动">限时活动</option><option value="常规活动">常规活动</option></select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-item"><label class="form-label">开启时间 <span class="req">*</span></label><input class="form-input" id="f_start" type="datetime-local"></div>
+              <div class="form-item"><label class="form-label">结束时间</label><input class="form-input" id="f_end" type="datetime-local"><div class="form-hint">留空表示永不结束</div></div>
+            </div>
+            <div class="form-row">
+              <div class="form-item"><label class="form-label">周期刷新规则</label>
+                <select class="form-select" id="f_refresh"><option value="不刷新">不刷新</option><option value="每日刷新">每日刷新</option><option value="每周刷新">每周刷新</option><option value="每月刷新">每月刷新</option></select>
+              </div>
+              <div class="form-item"><label class="form-label">刷新时刻</label><input class="form-input" id="f_refreshTime" type="time" value="05:00"><div class="form-hint">游戏内常见凌晨5点刷新</div></div>
+            </div>
+            <div class="form-row">
+              <div class="form-item"><label class="form-label">活动描述</label><textarea class="form-textarea" id="f_desc"></textarea></div>
+              <div class="form-item"><label class="form-label">Banner图文件名</label><input class="form-input" id="f_banner" placeholder="如：banner_qixi_2026.png"><div class="form-hint">用于客户端通用预制体显示，填写资源文件名</div></div>
+            </div>
+            <div class="form-row">
+              <div class="form-item"><label class="form-label">活动中心入口图</label><input class="form-input" id="f_entryImg" placeholder="如：entry_qixi_2026.png"><div class="form-hint">活动中心列表中显示的封面缩略图</div></div>
+              <div class="form-item"><label class="form-label">主界面轮播图</label><input class="form-input" id="f_carouselImg" placeholder="如：carousel_qixi_2026.png"><div class="form-hint">主界面轮播Banner图，建议尺寸与轮播控件一致</div></div>
+            </div>
+            <div class="form-row">
+              <div class="form-item form-item-2"><label class="form-label">活动规则</label><textarea class="form-textarea" id="f_rules" placeholder="活动规则文案，客户端点击「规则」按钮时展示&#10;支持换行" style="min-height:60px;"></textarea></div>
+            </div>
+            <div class="form-row">
+              <div class="form-item"><label class="form-label">活动白名单模式</label>
+                <select class="form-select" id="f_whitelistMode" onchange="toggleActivityWhitelistInput()"><option value="全量用户">全量用户</option><option value="指定ID">指定ID</option></select>
+                <div class="form-hint">「全量用户」= 所有玩家可见；「指定ID」= 仅白名单内玩家可见（子配置的「全量用户」将自动跟随此白名单）</div>
+              </div>
+              <div class="form-item"><label class="form-label">活动白名单ID列表</label>
+                <textarea class="form-textarea" id="f_whitelistIds" placeholder="每行一个玩家ID，如：\n10001\n10002\n10003" style="min-height:60px;"></textarea>
+                <div class="form-hint">每行一个玩家ID，留空则所有玩家可见</div>
+              </div>
+            </div>
+          </div>
+          <div class="page-actions">
+            <button class="btn" onclick="goList()">取消</button>
+            <button class="btn btn-primary" onclick="saveActivity()">保存活动配置</button>
+          </div>
+        </div>
+
+        <!-- 子配置 Tab -->
+        <div class="card">
+          <div class="tabs" id="subTabs">
+            <div class="tab active" data-tab="tasks" onclick="switchTab('tasks')">📋 任务管理 <span class="tab-badge" id="taskCount">0</span></div>
+            <div class="tab" data-tab="shop" onclick="switchTab('shop')">🛍️ 积分商城 <span class="tab-badge" id="shopCount">0</span></div>
+            <div class="tab" data-tab="milestone" onclick="switchTab('milestone')">🏆 里程碑奖励 <span class="tab-badge" id="msCount">0</span></div>
+          </div>
+
+          <!-- ---- 任务管理 ---- -->
+          <div class="tab-content active" id="tab-tasks">
+            <div style="padding: 0 20px 20px;">
+              <div class="info-box purple">
+                <span>💡</span>
+                <div>完成任务可同时获得 <strong>商城积分</strong>（用于积分商城兑换）和 <strong>里程碑积分</strong>（用于里程碑进度），两种积分独立核算但按 <strong>1:1</strong> 比例同步发放。任务配置中设置的积分为同时发放的数量。</div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <select class="form-select" style="width:130px;" id="taskTypeFilter" onchange="renderTasks()">
+                  <option value="">全部类型</option><option value="登录">登录</option><option value="充值">充值</option><option value="送礼">送礼</option><option value="签到">签到</option><option value="通关">通关</option><option value="消耗物品">消耗物品</option><option value="在线时间">在线时间</option><option value="完成UGC购买">完成UGC购买</option><option value="拥有指定道具">拥有指定道具</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="showCreateTask()">＋ 新建任务</button>
+              </div>
+              <div id="taskList"></div>
+            </div>
+          </div>
+
+          <!-- ---- 积分商城 ---- -->
+          <div class="tab-content" id="tab-shop">
+            <div style="padding: 0 20px 20px;">
+              <div class="info-box">
+                <span>💡</span>
+                <div>积分商城使用 <strong>商城积分</strong> 兑换商品。商城积分通过完成任务获得，与里程碑积分独立但等量发放。</div>
+              </div>
+              <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+                <button class="btn btn-primary btn-sm" onclick="showCreateShop()">＋ 添加商品</button>
+              </div>
+              <div class="table-wrapper">
+                <table><thead><tr><th>商品ID</th><th>奖励物品</th><th>所需商城积分</th><th>兑换上限</th><th>开启时间</th><th>上线/白名单</th><th>操作</th></tr></thead>
+                <tbody id="shopTableBody"></tbody></table>
+              </div>
+            </div>
+          </div>
+
+          <!-- ---- 里程碑奖励 ---- -->
+          <div class="tab-content" id="tab-milestone">
+            <div style="padding: 0 20px 20px;">
+              <div class="info-box warn">
+                <span>💡</span>
+                <div>里程碑基于玩家在本活动中 <strong>累计获得的里程碑积分</strong> 解锁（无论商城积分是否已兑换消耗）。支持 <strong>个人 / 战队 / 全服</strong> 三种维度，每个维度的里程碑独立配置。</div>
+              </div>
+
+              <!-- 个人/战队/全服 子Tab -->
+              <div class="ms-tabs" id="msDimTabs">
+                <div class="ms-tab active" data-dim="personal" onclick="switchMsDim('personal')"><span class="dot personal"></span>个人里程碑</div>
+                <div class="ms-tab" data-dim="team" onclick="switchMsDim('team')"><span class="dot team"></span>战队里程碑</div>
+                <div class="ms-tab" data-dim="server" onclick="switchMsDim('server')"><span class="dot server"></span>全服里程碑</div>
+              </div>
+
+              <!-- 维度说明 -->
+              <div id="msDimInfo"></div>
+
+              <!-- 进度预览 -->
+              <div class="card" style="box-shadow:none;border:1px solid #f0f0f0;">
+                <div class="card-header"><h3 style="font-size:13px;">玩家视角 · 里程碑进度预览</h3></div>
+                <div class="card-body" style="overflow-x:auto;"><div class="ms-track" id="msTrack"></div></div>
+              </div>
+
+              <div style="display:flex;justify-content:flex-end;margin:16px 0;">
+                <button class="btn btn-primary btn-sm" onclick="showCreateMilestone()">＋ 添加里程碑</button>
+              </div>
+              <div class="table-wrapper">
+                <table><thead><tr><th>排序</th><th>所需里程碑积分</th><th>奖励内容</th><th>维度</th><th>开启时间</th><th>上线/白名单</th><th>操作</th></tr></thead>
+                <tbody id="msTableBody"></tbody></table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== 数据统计 ==================== -->
+      <div id="view-stats" style="display:none;" class="fade-in">
+        <div class="search-bar">
+          <select class="form-select" style="width:180px;" id="statsActivityFilter" onchange="renderStats()">
+            <option value="">全部活动</option>
+          </select>
+          <select class="form-select" style="width:130px;" id="statsRange" onchange="renderStats()">
+            <option value="today">今日</option><option value="7d">近7天</option><option value="30d">近30天</option><option value="all">全部</option>
+          </select>
+          <div style="flex:1"></div>
+          <button class="btn btn-sm" onclick="exportStats()">📥 导出报表</button>
+        </div>
+        <div class="stats-row" id="statsOverview"></div>
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
+          <div class="card"><div class="card-header"><h3>📈 参与人次趋势</h3></div><div class="card-body"><div class="chart-bar-group" id="chartParticipation"></div></div></div>
+          <div class="card"><div class="card-header"><h3>🪙 积分发放趋势</h3></div><div class="card-body"><div class="chart-bar-group" id="chartPoints"></div></div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+          <div class="card"><div class="card-header"><h3>📋 任务完成排行</h3></div><div class="card-body"><ul class="rank-list" id="rankTask"></ul></div></div>
+          <div class="card"><div class="card-header"><h3>🛍️ 商品兑换排行</h3></div><div class="card-body"><ul class="rank-list" id="rankShop"></ul></div></div>
+        </div>
+        <div class="card" style="margin-top:16px;"><div class="card-header"><h3>📋 任务完成明细</h3></div><div class="card-body" style="padding:0;"><div class="table-wrapper"><table><thead><tr><th>任务名称</th><th>所属活动</th><th>完成次数</th><th>完成率</th><th>平均耗时</th></tr></thead><tbody id="taskDetailBody"></tbody></table></div></div></div>
+        <div class="card" style="margin-top:16px;"><div class="card-header"><h3>🏆 里程碑解锁概览</h3></div><div class="card-body" id="milestoneStats"></div></div>
+        <div class="card" style="margin-top:16px;"><div class="card-header"><h3>📊 活动数据明细</h3></div><div class="card-body" style="padding:0;"><div class="table-wrapper"><table><thead><tr><th>活动名称</th><th>状态</th><th>参与人次</th><th>任务完成</th><th>完成率</th><th>积分发放</th><th>人均积分</th><th>积分兑换</th><th>兑换率</th><th>积分留存</th><th>奖励领取率</th><th>充值总额</th><th>里程碑解锁</th><th>解锁率</th></tr></thead><tbody id="statsDetailBody"></tbody></table></div></div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+          <div class="card"><div class="card-header"><h3>📦 商城库存消耗</h3></div><div class="card-body" id="shopStockStats"></div></div>
+          <div class="card"><div class="card-header"><h3>⏰ 活跃时段分析</h3></div><div class="card-body" id="peakHourStats"></div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 创建活动 ==================== -->
+<div class="modal-mask" id="modal-createActivity" onclick="if(event.target===this)closeModal(this)">
+  <div class="modal">
+    <div class="modal-header"><h3>创建新活动</h3><div class="modal-close" onclick="closeModal(document.getElementById('modal-createActivity'))">✕</div></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">活动名称 <span class="req">*</span></label><input class="form-input" id="c_name" placeholder="如：七夕限定·星光舞台"></div>
+        <div class="form-item"><label class="form-label">活动类型 <span class="req">*</span></label>
+          <select class="form-select" id="c_type"><option value="限时活动">限时活动</option><option value="常规活动">常规活动</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">开启时间 <span class="req">*</span></label><input class="form-input" id="c_start" type="datetime-local"></div>
+        <div class="form-item"><label class="form-label">结束时间</label><input class="form-input" id="c_end" type="datetime-local"><div class="form-hint">留空表示永不结束</div></div>
+      </div>
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">周期刷新规则</label>
+          <select class="form-select" id="c_refresh"><option value="不刷新">不刷新</option><option value="每日刷新">每日刷新</option><option value="每周刷新">每周刷新</option><option value="每月刷新">每月刷新</option></select>
+        </div>
+        <div class="form-item"><label class="form-label">刷新时刻</label><input class="form-input" id="c_refreshTime" type="time" value="05:00"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-item form-item-2"><label class="form-label">活动规则</label><textarea class="form-textarea" id="c_rules" placeholder="活动规则文案，客户端点击「规则」按钮时展示&#10;支持换行，如：&#10;1. 活动期间完成任务可获得积分&#10;2. 积分可用于兑换限定奖励&#10;3. 每个奖励每人限兑一次" style="min-height:80px;"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal(document.getElementById('modal-createActivity'))">取消</button>
+      <button class="btn btn-primary" onclick="confirmCreateActivity()">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 创建任务 ==================== -->
+<div class="modal-mask" id="modal-task" onclick="if(event.target===this)closeModal(this)">
+  <div class="modal" style="width:740px;">
+    <div class="modal-header"><h3 id="taskModalTitle">新建任务</h3><div class="modal-close" onclick="closeModal(document.getElementById('modal-task'))">✕</div></div>
+    <div class="modal-body">
+      <div class="info-box purple" style="margin-bottom:20px;">
+        <span>💡</span>
+        <div>设置的积分数会按 <strong>1:1</strong> 同时发放到玩家的 <strong>商城积分</strong> 和 <strong>里程碑积分</strong> 账户。</div>
+      </div>
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">任务类型 <span class="req">*</span></label>
+          <select class="form-select" id="t_type" onchange="refreshTargetModeOptions()"><option value="登录">登录</option><option value="充值">充值</option><option value="送礼">送礼</option><option value="签到">签到</option><option value="通关">通关</option><option value="消耗物品">消耗物品</option><option value="在线时间">在线时间</option><option value="完成UGC购买">完成UGC购买</option><option value="拥有指定道具">拥有指定道具</option><option value="自定义">自定义</option></select>
+        </div>
+        <div class="form-item"><label class="form-label">任务名称 <span class="req">*</span></label><input class="form-input" id="t_name" placeholder="如：每日登录领星钻"></div>
+      </div>
+      <div class="form-row" id="row-targetMode">
+        <div class="form-item"><label class="form-label">目标方式 <span class="req">*</span></label>
+          <select class="form-select" id="t_targetMode" onchange="toggleTargetModeInput()">
+            <option value="">— 请先选择任务类型 —</option>
+          </select>
+          <div class="form-hint" id="targetModeHint"></div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-item" id="wrap-targetIds" style="display:none;"><label class="form-label">指定目标ID列表</label>
+          <textarea class="form-textarea" id="t_targetIds" placeholder="每行一个ID，如：&#10;20001&#10;20002&#10;30001" style="min-height:80px;"></textarea>
+          <div class="form-hint" id="targetIdsHint">指定此任务要完成的目标ID</div>
+        </div>
+        <div class="form-item" id="wrap-targetValue"><label class="form-label">目标值 <span class="req">*</span></label>
+          <input class="form-input" id="t_target" type="number" value="1">
+          <div class="form-hint" id="targetValueHint">完成任务需要达到的数值</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">每周期最大完成次数</label><input class="form-input" id="t_maxTimes" type="number" value="1"><div class="form-hint">填 0 表示无限次</div></div>
+        <div class="form-item"><label class="form-label">活动期间最大完成次数</label><input class="form-input" id="t_totalMaxTimes" type="number" value="0"><div class="form-hint">填 0 表示不限</div></div>
+      </div>
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">完成获得积分 <span class="req">*</span></label><input class="form-input" id="t_points" type="number" value="0"><div class="form-hint">同时发放商城积分 + 里程碑积分（1:1）</div></div>
+        <div class="form-item"><label class="form-label">周期刷新规则</label>
+          <select class="form-select" id="t_refresh"><option value="不刷新">不刷新（活动期间仅完成一次）</option><option value="每日">每日刷新</option><option value="每周">每周刷新</option><option value="每月">每月刷新</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">生效开始时间</label><input class="form-input" id="t_activeStartTime" type="datetime-local"><div class="form-hint">任务开始生效的时间，留空则跟随活动时间</div></div>
+        <div class="form-item"><label class="form-label">生效结束时间</label><input class="form-input" id="t_activeEndTime" type="datetime-local"><div class="form-hint">任务生效结束的时间，留空则永久生效</div></div>
+      </div>
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">上线状态</label>
+          <select class="form-select" id="t_onlineStatus"><option value="上线">上线</option><option value="下线">下线</option></select>
+          <div class="form-hint">下线后玩家端将无法看到此任务</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">白名单模式</label>
+          <select class="form-select" id="t_whitelistMode" onchange="toggleWhitelistInput()"><option value="全量用户">全量用户</option><option value="指定ID">指定ID</option></select>
+          <div class="form-hint">指定ID模式下仅白名单内玩家可见</div>
+        </div>
+        <div class="form-item" id="whitelistInputWrap" style="display:none;"><label class="form-label">白名单ID列表</label>
+          <textarea class="form-textarea" id="t_whitelistIds" placeholder="每行一个玩家ID，如：&#10;10001&#10;10002&#10;10003" style="min-height:80px;"></textarea>
+          <div class="form-hint">每行一个玩家ID，仅这些玩家可看到此任务</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">发放方式</label>
+          <select class="form-select" id="t_rewardMode" onchange="toggleRewardCountInput()"><option value="all">全部发放</option><option value="random">随机发放</option><option value="choose">自选发放（玩家选一个）</option></select>
+          <div class="form-hint">全部发放 = 所有配置物品一起发；随机发放 = 从列表中随机抽取</div>
+        </div>
+      </div>
+      <div class="form-row" id="rewardCountWrap" style="display:none;">
+        <div class="form-item"><label class="form-label">发放数量 <span class="req">*</span></label><input class="form-input" id="t_rewardCount" type="number" value="1" min="1"><div class="form-hint">随机发放：从列表中随机抽几个；自选发放：玩家可选几个</div></div>
+      </div>
+      <div class="form-row">
+        <div class="form-item form-item-2"><label class="form-label">奖励物品列表</label>
+          <div id="t_rewardList"></div>
+          <button class="btn btn-sm" onclick="addRewardItem()" style="margin-top:8px;">＋ 添加物品</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-item form-item-2"><label class="form-label">自定义代码（可选）</label>
+          <textarea class="form-textarea" id="t_customCode" style="min-height:100px;font-family:Consolas,Monaco,monospace;font-size:13px;background:#1e1e2e;color:#cdd6f4;border:1px solid #45475a;" placeholder='// 开发可在此编写特殊任务逻辑&#10;// 参数: player, task, activity&#10;// 示例:&#10;// if (player.vipLevel >= 5) {&#10;//   task.bonusPoints = 100;&#10;// }'></textarea>
+          <div class="form-hint">开发可编写特殊任务判定逻辑，留空则使用默认判定</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal(document.getElementById('modal-task'))">取消</button>
+      <button class="btn btn-primary" onclick="confirmSaveTask()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 创建积分商品 ==================== -->
+<div class="modal-mask" id="modal-shop" onclick="if(event.target===this)closeModal(this)">
+  <div class="modal">
+    <div class="modal-header"><h3 id="shopModalTitle">添加积分商品</h3><div class="modal-close" onclick="closeModal(document.getElementById('modal-shop'))">✕</div></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-item form-item-2"><label class="form-label">兑换奖励物品 <span class="req">*</span></label>
+          <div id="s_rewardList"></div>
+          <button class="btn btn-sm" onclick="addShopRewardItem()" style="margin-top:8px;">＋ 添加物品</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">所需商城积分 <span class="req">*</span></label><input class="form-input" id="s_cost" type="number" placeholder="兑换消耗的积分"></div>
+        <div class="form-item"><label class="form-label">每人兑换上限</label><input class="form-input" id="s_limit" type="number" value="0"><div class="form-hint">0 = 不限</div></div>
+      </div>
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">开启开始时间</label><input class="form-input" id="s_activeStartTime" type="datetime-local"><div class="form-hint">商品上架生效的时间，留空则立即生效</div></div>
+        <div class="form-item"><label class="form-label">开启结束时间</label><input class="form-input" id="s_activeEndTime" type="datetime-local"><div class="form-hint">商品下架时间，留空则永久生效</div></div>
+      </div>
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">上线状态</label>
+          <select class="form-select" id="s_onlineStatus"><option value="上线">上线</option><option value="下线">下线</option></select>
+          <div class="form-hint">下线后玩家端将无法看到此商品</div>
+        </div>
+        <div class="form-item"><label class="form-label">白名单模式</label>
+          <select class="form-select" id="s_whitelistMode" onchange="toggleShopWhitelistInput()"><option value="全量用户">全量用户</option><option value="指定ID">指定ID</option></select>
+          <div class="form-hint">指定ID模式下仅白名单内玩家可见</div>
+        </div>
+      </div>
+      <div class="form-row" id="shopWhitelistWrap" style="display:none;">
+        <div class="form-item form-item-2"><label class="form-label">白名单ID列表</label>
+          <textarea class="form-textarea" id="s_whitelistIds" placeholder="每行一个玩家ID，如：\n10001\n10002\n10003" style="min-height:60px;"></textarea>
+          <div class="form-hint">每行一个玩家ID，仅这些玩家可看到此商品</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal(document.getElementById('modal-shop'))">取消</button>
+      <button class="btn btn-primary" onclick="confirmSaveShop()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 创建里程碑 ==================== -->
+<div class="modal-mask" id="modal-milestone" onclick="if(event.target===this)closeModal(this)">
+  <div class="modal">
+    <div class="modal-header"><h3 id="msModalTitle">添加里程碑奖励</h3><div class="modal-close" onclick="closeModal(document.getElementById('modal-milestone'))">✕</div></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">里程碑维度 <span class="req">*</span></label>
+          <select class="form-select" id="m_dim"><option value="personal">个人</option><option value="team">战队</option><option value="server">全服</option></select>
+          <div class="form-hint">个人=单人累计积分；战队=战队成员累计总和；全服=全服玩家累计总和</div>
+        </div>
+        <div class="form-item"><label class="form-label">所需里程碑积分 <span class="req">*</span></label><input class="form-input" id="m_points" type="number" placeholder="如：1000"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">开启开始时间</label><input class="form-input" id="m_activeStartTime" type="datetime-local"><div class="form-hint">里程碑开始生效的时间，留空则跟随活动时间</div></div>
+        <div class="form-item"><label class="form-label">开启结束时间</label><input class="form-input" id="m_activeEndTime" type="datetime-local"><div class="form-hint">里程碑结束时间，留空则永久生效</div></div>
+      </div>
+      <div class="form-row">
+        <div class="form-item"><label class="form-label">上线状态</label>
+          <select class="form-select" id="m_onlineStatus"><option value="上线">上线</option><option value="下线">下线</option></select>
+          <div class="form-hint">下线后玩家端将无法看到此里程碑</div>
+        </div>
+        <div class="form-item"><label class="form-label">白名单模式</label>
+          <select class="form-select" id="m_whitelistMode" onchange="toggleMilestoneWhitelistInput()"><option value="全量用户">全量用户</option><option value="指定ID">指定ID</option></select>
+          <div class="form-hint">指定ID模式下仅白名单内玩家可见</div>
+        </div>
+      </div>
+      <div class="form-row" id="milestoneWhitelistWrap" style="display:none;">
+        <div class="form-item form-item-2"><label class="form-label">白名单ID列表</label>
+          <textarea class="form-textarea" id="m_whitelistIds" placeholder="每行一个玩家ID，如：\n10001\n10002\n10003" style="min-height:60px;"></textarea>
+          <div class="form-hint">每行一个玩家ID，仅这些玩家可看到此里程碑</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-item form-item-2"><label class="form-label">里程碑奖励物品 <span class="req">*</span></label>
+          <div id="m_rewardList"></div>
+          <button class="btn btn-sm" onclick="addMsRewardItem()" style="margin-top:8px;">＋ 添加物品</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal(document.getElementById('modal-milestone'))">取消</button>
+      <button class="btn btn-primary" onclick="confirmSaveMilestone()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 确认删除 ==================== -->
+<div class="modal-mask" id="modal-confirm" onclick="if(event.target===this)closeModal(this)">
+  <div class="modal" style="width:420px;">
+    <div class="modal-header"><h3 id="confirmTitle">确认删除</h3><div class="modal-close" onclick="closeModal(document.getElementById('modal-confirm'))">✕</div></div>
+    <div class="modal-body"><p id="confirmMsg" style="color:#595959;line-height:1.8;"></p></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal(document.getElementById('modal-confirm'))">取消</button>
+      <button class="btn btn-danger" id="confirmBtn">确认删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 推送到正式服 ==================== -->
+<div class="modal-mask" id="modal-push" onclick="if(event.target===this)closeModal(this)">
+  <div class="modal" style="width:520px;">
+    <div class="modal-header"><h3>🚀 推送到正式服</h3><div class="modal-close" onclick="closeModal(document.getElementById('modal-push'))">✕</div></div>
+    <div class="modal-body">
+      <div class="info-box" style="background:#fff7e6;border-color:#ffd591;color:#ad6800;margin-bottom:16px;">
+        <span>⚠️</span>
+        <div>请确认以下信息后执行推送，推送后正式服将获得此活动的完整配置。</div>
+      </div>
+      <div id="pushSummary" style="background:#fafafa;padding:16px;border-radius:8px;margin-bottom:16px;"></div>
+      <div class="form-row">
+        <div class="form-item form-item-2"><label class="form-label">推送备注（可选）</label><input class="form-input" id="pushRemark" placeholder="如：七夕活动配置推送"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal(document.getElementById('modal-push'))">取消</button>
+      <button class="btn btn-primary" style="background:#fa8c16;border-color:#fa8c16;" onclick="confirmPush()">确认推送</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== Mock Data ====================
+let nextId = 1004;
+let activities = [
+  {
+    id: 1001, name: '七夕限定·星光舞台', type: '限时活动', status: '已上线', onlineStatus: '上线',
+    start: '2026-08-25T10:00', end: '2026-09-01T23:59', refresh: '不刷新', refreshTime: '05:00',
+    desc: '七夕特别活动，完成任务收集星光积分，兑换限定奖励！', banner: 'banner_qixi_2026.png', entryImg: 'entry_qixi_2026.png', carouselImg: 'carousel_qixi_2026.png',
+    rules: '1. 活动期间（8.25-9.1）完成任务可获得商城积分和里程碑积分\n2. 商城积分用于兑换商城商品，里程碑积分用于解锁里程碑奖励\n3. 任务每日/每周刷新，以任务配置为准\n4. 每个商品每人有兑换上限，达到上限后无法继续兑换\n5. 里程碑奖励需达到对应积分门槛后方可领取\n6. 白名单内的玩家才能看到并参与此活动',
+    whitelistMode: '指定ID', whitelistIds: ['10001','10002','10003','10004','10005'],
+    tasks: [
+      { id:1, type:'登录',   name:'每日登录领星钻',   targetMode:'any',    targetIds:[], target:1,  maxTimes:1, totalMaxTimes:0, refresh:'每日',   points:10,  rewardMode:'all',    rewardList:[{id:1,amount:100},{id:10023,amount:1}], customCode:'', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:2, type:'充值',   name:'累计充值送豪礼',   targetMode:'amount', targetIds:[], target:648, maxTimes:1, totalMaxTimes:1, refresh:'不刷新', points:500, rewardMode:'all',    rewardList:[{id:50012,amount:1},{id:1,amount:6480}], customCode:'', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3, type:'送礼',   name:'赠送礼物传心意',   targetMode:'any',    targetIds:[], target:5,  maxTimes:1, totalMaxTimes:0, refresh:'每日',   points:20,  rewardMode:'random', rewardCount:1, rewardList:[{id:20001,amount:3},{id:20002,amount:2}], customCode:'', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:4, type:'通关',   name:'通关困难副本',     targetMode:'any',    targetIds:[], target:1,  maxTimes:1, totalMaxTimes:3, refresh:'不刷新', points:50,  rewardMode:'all',    rewardList:[{id:30045,amount:2}], customCode:'', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'指定ID', whitelistIds:['10001','10002','10003'] },
+      { id:5, type:'签到', name:'连续签到7天', target:7, maxTimes:1, totalMaxTimes:0, refresh:'每周', points:30, rewardMode:'all', rewardList:[{id:40022,amount:1},{id:1,amount:500}], customCode:'', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'下线', whitelistMode:'全量用户', whitelistIds:[] },
+    ],
+    shop: [
+      { id:2001, itemType:'道具', itemId:30001, amount:1, cost:500, limit:1, activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:2002, itemType:'道具', itemId:10001, amount:500, cost:200, limit:0, activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:2003, itemType:'道具', itemId:30045, amount:1, cost:800, limit:5, activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'指定ID', whitelistIds:['10001','10002'] },
+      { id:2004, rewardList:[{id:50012,amount:1}], cost:2000, limit:1, activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:2005, rewardList:[{id:40022,amount:1}], cost:3000, limit:1, activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'下线', whitelistMode:'全量用户', whitelistIds:[] },
+    ],
+    milestones: [
+      { id:3001, points:100, rewardList:[{id:1,amount:50}], dim:'personal', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3002, points:300, rewardList:[{id:10023,amount:1},{id:1,amount:100}], dim:'personal', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3003, points:600, rewardList:[{id:40022,amount:1}], dim:'personal', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3004, points:1000, rewardList:[{id:40022,amount:1},{id:1,amount:500}], dim:'personal', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'指定ID', whitelistIds:['10001'] },
+      { id:3005, points:2000, rewardList:[{id:50012,amount:1}], dim:'personal', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3006, points:5000, rewardList:[{id:60001,amount:1},{id:1,amount:2000}], dim:'personal', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'下线', whitelistMode:'全量用户', whitelistIds:[] },
+      // team
+      { id:3010, points:500, rewardList:[{id:10001,amount:200}], dim:'team', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3011, points:2000, rewardList:[{id:30045,amount:3}], dim:'team', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3012, points:5000, rewardList:[{id:50012,amount:1},{id:1,amount:1000}], dim:'team', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      // server
+      { id:3020, points:10000, rewardList:[{id:1,amount:500}], dim:'server', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3021, points:50000, rewardList:[{id:60001,amount:1},{id:1,amount:2000}], dim:'server', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3022, points:100000, rewardList:[{id:50012,amount:1},{id:60001,amount:1},{id:1,amount:5000}], dim:'server', activeStartTime:'2026-08-25T10:00', activeEndTime:'2026-09-01T23:59', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+    ]
+  },
+  {
+    id: 1002, name: '每日登录送好礼', type: '常规活动', status: '已上线', onlineStatus: '上线',
+    start: '2026-08-01T00:00', end: '', refresh: '每日刷新', refreshTime: '05:00',
+    desc: '每日登录即可领取奖励，坚持签到更有惊喜！', banner: 'banner_daily_login.png', entryImg: 'entry_daily_login.png', carouselImg: 'carousel_daily_login.png',
+    rules: '1. 每日登录即可获得奖励，坚持签到更有惊喜\n2. 连续登录天数越多，奖励越丰厚\n3. 常规活动长期开放，随时可参与',
+    whitelistMode: '全量用户', whitelistIds: [],
+    tasks: [
+      { id:6, type:'登录', name:'每日登录',       targetMode:'any',  targetIds:[], target:1, maxTimes:1, totalMaxTimes:0, refresh:'每日', points:5,  rewardMode:'all', rewardList:[{id:1,amount:50}],   customCode:'', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:7, type:'签到', name:'累计签到3天',     targetMode:'any',  targetIds:[], target:3, maxTimes:1, totalMaxTimes:0, refresh:'每日', points:15, rewardMode:'all', rewardList:[{id:10001,amount:100}], customCode:'', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:8, type:'登录', name:'累计登录7天',     targetMode:'any',  targetIds:[], target:7, maxTimes:1, totalMaxTimes:0, refresh:'每周', points:30, rewardMode:'all', rewardList:[{id:10023,amount:3}], customCode:'', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+    ],
+    shop: [
+      { id:2006, rewardList:[{id:10001,amount:200}], cost:100, limit:0, onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:2007, rewardList:[{id:10023,amount:1}], cost:50, limit:0, onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+    ],
+    milestones: [
+      { id:3030, points:50, rewardList:[{id:1,amount:100}], dim:'personal', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3031, points:150, rewardList:[{id:10023,amount:2}], dim:'personal', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3032, points:300, rewardList:[{id:10001,amount:100}], dim:'team', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3033, points:800, rewardList:[{id:10023,amount:3}], dim:'team', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3034, points:5000, rewardList:[{id:1,amount:500}], dim:'server', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3035, points:20000, rewardList:[{id:10023,amount:10}], dim:'server', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+    ]
+  },
+  {
+    id: 1003, name: '新版本狂欢', type: '限时活动', status: '未上线', onlineStatus: '下线',
+    start: '2026-09-05T10:00', end: '2026-09-19T23:59', refresh: '不刷新', refreshTime: '05:00',
+    desc: '新版本上线狂欢，海量任务等你来挑战！', banner: 'banner_new_version.png', entryImg: 'entry_new_version.png', carouselImg: 'carousel_new_version.png',
+    rules: '1. 新版本上线狂欢活动（9.5-9.19）\n2. 完成新版本专属任务可获得限定奖励\n3. 限时活动，过期后任务和商店将关闭\n4. 部分奖励为新版本限定，错过将无法获得',
+    whitelistMode: '指定ID', whitelistIds: ['20001','20002','20003'],
+    tasks: [
+      { id:9,  type:'登录', name:'登录领新版本礼包', targetMode:'any',  targetIds:[], target:1, maxTimes:1, totalMaxTimes:1, refresh:'不刷新', points:20,  rewardMode:'all', rewardList:[{id:60001,amount:1}],   customCode:'', onlineStatus:'上线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:10, type:'通关', name:'通关新副本',       targetMode:'any',  targetIds:[], target:3, maxTimes:1, totalMaxTimes:5, refresh:'不刷新', points:100, rewardMode:'all', rewardList:[{id:30045,amount:5}], customCode:'', onlineStatus:'上线', whitelistMode:'指定ID', whitelistIds:['20001','20002'] },
+    ],
+    shop: [
+      { id:2008, rewardList:[{id:60001,amount:1}], cost:500, limit:1, onlineStatus:'下线', whitelistMode:'全量用户', whitelistIds:[] },
+    ],
+    milestones: [
+      { id:3040, points:200, rewardList:[{id:60001,amount:1}], dim:'personal', onlineStatus:'下线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3041, points:500, rewardList:[{id:30045,amount:2}], dim:'team', onlineStatus:'下线', whitelistMode:'全量用户', whitelistIds:[] },
+      { id:3042, points:3000, reward:'{"rewards":[{"type":"currency","id":1,"amount":300}]}', dim:'server', onlineStatus:'下线', whitelistMode:'全量用户', whitelistIds:[] },
+    ]
+  }
+];
+
+let currentActivityId = null;
+let editingTaskIdx = null;
+let editingShopIdx = null;
+let editingMsIdx = null;
+let currentMsDim = 'personal';
+
+// ==================== Helpers ====================
+function getTypeTag(type) {
+  return `<span class="tag ${type==='限时活动'?'tag-blue':'tag-orange'}">${type}</span>`;
+}
+function getStatusTag(status) {
+  const m = {'已上线':'tag-green','未上线':'tag-gray','已结束':'tag-red','启用':'tag-green','禁用':'tag-gray','上架':'tag-green','下架':'tag-gray'};
+  return `<span class="tag ${m[status]||'tag-gray'}">${status}</span>`;
+}
+function getRefreshTag(r) {
+  return r === '不刷新' ? '<span class="tag tag-gray">不刷新</span>' : `<span class="tag tag-blue">${r}</span>`;
+}
+function getTaskTypeIcon(t) {
+  return {'登录':'📱','充值':'💰','送礼':'💝','签到':'📅','通关':'🏅','消耗物品':'📦','在线时间':'⏱','完成UGC购买':'🎨','拥有指定道具':'🎒','自定义':'⚙️'}[t]||'📋';
+}
+function getDimTag(dim) {
+  const m = {personal:'tag-blue', team:'tag-green', server:'tag-orange'};
+  const n = {personal:'个人', team:'战队', server:'全服'};
+  return `<span class="tag ${m[dim]||'tag-gray'}">${n[dim]||dim}</span>`;
+}
+function formatReward(rewardList, rewardMode, rewardCount) {
+  // 兼容旧格式：如果是字符串则解析
+  let list = rewardList;
+  if (typeof list === 'string') {
+    try { const p = JSON.parse(list); list = p.rewards || []; } catch(e) { list = []; }
+  }
+  if (!list||!list.length) return '<span class="tag tag-gray">无</span>';
+  const count = rewardCount || 1;
+  const modeTag = rewardMode==='random' ? `<span class="tag tag-blue" style="margin-left:6px;">随机×${count}</span>`
+    : rewardMode==='choose' ? `<span class="tag tag-purple" style="margin-left:6px;">自选×${count}</span>` : '';
+  return list.map(item => {
+    return `<span class="tag tag-orange">#${item.id} ×${item.amount}</span>`;
+  }).join(' ') + modeTag;
+}
+function formatRewardSimple(rewardList) {
+  // 兼容旧格式
+  let list = rewardList;
+  if (typeof list === 'string') {
+    try { const p = JSON.parse(list); list = p.rewards || []; } catch(e) { list = []; }
+  }
+  if (!list||!list.length) return '无';
+  return list.map(item => `#${item.id}×${item.amount}`).join('<br>');
+}
+function formatDateTime(dt) { return dt ? dt.replace('T',' ') : '永久'; }
+
+// ==================== Activity List ====================
+function renderActivityList(list) {
+  const tbody = document.getElementById('activityTableBody');
+  if (!list) list = activities;
+  tbody.innerHTML = list.map(a => {
+    const onlineTag = a.onlineStatus==='上线' ? '<span class="tag tag-green">已上线</span>' : '<span class="tag tag-gray">已下线</span>';
+    const wlMode = a.whitelistMode||'全量用户';
+    const wlTag = wlMode==='指定ID' ? `<span class="tag tag-orange">白名单(${(a.whitelistIds||[]).length}人)</span>` : '<span class="tag tag-blue">全量</span>';
+    return `<tr class="clickable" onclick="openActivity(${a.id})">
+      <td>${a.id}</td><td><strong>${a.name}</strong></td><td>${getTypeTag(a.type)}</td><td>${getStatusTag(a.status)}</td>
+      <td onclick="event.stopPropagation()"><button class="btn btn-sm ${a.onlineStatus==='上线'?'btn-success':'btn-outline'}" onclick="toggleActivityOnline(${a.id})">${a.onlineStatus==='上线'?'🟢':'⚫'}</button> ${onlineTag}</td>
+      <td onclick="event.stopPropagation()">${wlTag}</td>
+      <td>${formatDateTime(a.start)}</td><td>${formatDateTime(a.end)}</td><td>${getRefreshTag(a.refresh)}</td><td>${a.tasks.length}</td>
+      <td onclick="event.stopPropagation()"><div class="btn-group">
+        <button class="btn btn-sm" onclick="openActivity(${a.id})">编辑</button>
+        <button class="btn btn-sm" onclick="copyActivity(${a.id})">复制</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmDeleteActivity(${a.id})">删除</button>
+      </div></td>
+      <td onclick="event.stopPropagation()">
+        <button class="btn btn-sm btn-push" onclick="pushToProduction(${a.id})" title="推送到正式服">🚀 推送</button>
+      </td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="12"><div class="empty-state"><div class="icon">📭</div><div class="text">暂无匹配的活动</div></div></td></tr>';
+}
+
+function filterActivities() {
+  const q = document.getElementById('listSearch').value.toLowerCase();
+  const s = document.getElementById('listStatusFilter').value;
+  renderActivityList(activities.filter(a => {
+    if (q && !a.name.toLowerCase().includes(q) && !String(a.id).includes(q)) return false;
+    if (s && a.status !== s) return false;
+    return true;
+  }));
+}
+
+function toggleActivityOnline(id) {
+  const a = activities.find(x=>x.id===id);
+  if (!a) return;
+  a.onlineStatus = a.onlineStatus==='上线' ? '下线' : '上线';
+  renderActivityList();
+}
+
+// ==================== Navigation ====================
+function goList() {
+  currentActivityId = null;
+  document.getElementById('view-list').style.display = '';
+  document.getElementById('view-edit').style.display = 'none';
+  document.getElementById('view-stats').style.display = 'none';
+  document.getElementById('headerBack').style.display = 'none';
+  document.getElementById('pageTitle').textContent = '活动列表';
+  document.querySelectorAll('.menu-item')[0].classList.add('active');
+  document.querySelectorAll('.menu-item')[1].classList.remove('active');
+  filterActivities();
+}
+
+function goStats() {
+  currentActivityId = null;
+  document.getElementById('view-list').style.display = 'none';
+  document.getElementById('view-edit').style.display = 'none';
+  document.getElementById('view-stats').style.display = '';
+  document.getElementById('headerBack').style.display = 'none';
+  document.getElementById('pageTitle').textContent = '数据统计';
+  document.querySelectorAll('.menu-item')[0].classList.remove('active');
+  document.querySelectorAll('.menu-item')[1].classList.add('active');
+  // Populate activity filter
+  const sel = document.getElementById('statsActivityFilter');
+  sel.innerHTML = '<option value="">全部活动</option>' + activities.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  renderStats();
+}
+
+// Mock stats data
+const mockStats = {
+  1001: {
+    participants: 8234, completions: 24680, shopPts: 186500, msPts: 186500, exchanged: 42300,
+    msPersonal: 2800, msTeam: 1200, msServer: 800,
+    revenue: 156800, rechargePlayers: 1823,
+    claimedRewards: 19750, totalRewardSlots: 24680,
+    peakHour: 20,
+    taskNames: ['每日登录领星钻','累计充值送豪礼','赠送礼物传心意','通关困难副本','连续签到7天'],
+    taskComps: [12000,890,3400,1200,5600],
+    taskAvgMin: [0.5, 0, 12, 25, 1],
+    taskTargets: [1, 648, 5, 1, 7],
+    shopItems: ['星钻礼包','SSR翅膀碎片','七夕限定头像框','限定称号','七夕限定坐骑'],
+    shopExchanges: [18000,4500,2100,890,328],
+    shopStock: [50000,8000,3000,1500,500],
+    shopMaxStock: [50000,8000,3000,1500,500],
+    msTierNames: ['100积分','300积分','600积分','1000积分','2000积分','5000积分'],
+    msTierUnlocks: [6200,4800,3100,2100,1200,400]
+  },
+  1002: {
+    participants: 12847, completions: 38500, shopPts: 45200, msPts: 45200, exchanged: 12800,
+    msPersonal: 5200, msTeam: 2100, msServer: 1500,
+    revenue: 0, rechargePlayers: 0,
+    claimedRewards: 35200, totalRewardSlots: 38500,
+    peakHour: 8,
+    taskNames: ['每日登录','累计签到3天','累计登录7天'],
+    taskComps: [28000,8500,2000],
+    taskAvgMin: [0.3, 0.5, 0.5],
+    taskTargets: [1, 3, 7],
+    shopItems: ['星钻礼包','道具福袋'],
+    shopExchanges: [9800,3000],
+    shopStock: [99999,50000],
+    shopMaxStock: [99999,50000],
+    msTierNames: ['50积分','150积分','300积分','800积分','5000积分','20000积分'],
+    msTierUnlocks: [11200,7500,4200,1800,600,100]
+  },
+  1003: {
+    participants: 0, completions: 0, shopPts: 0, msPts: 0, exchanged: 0,
+    msPersonal: 0, msTeam: 0, msServer: 0,
+    revenue: 0, rechargePlayers: 0,
+    claimedRewards: 0, totalRewardSlots: 0,
+    peakHour: 0,
+    taskNames: ['登录领新版本礼包','通关新副本'],
+    taskComps: [0,0],
+    taskAvgMin: [0,0],
+    taskTargets: [1,3],
+    shopItems: ['新版本纪念品'],
+    shopExchanges: [0],
+    shopStock: [2000],
+    shopMaxStock: [2000],
+    msTierNames: ['200积分','500积分'],
+    msTierUnlocks: [0,0]
+  }
+};
+const dailyTrend = [
+  {d:'08-18',p:4520,pt:68000},{d:'08-19',p:5100,pt:76500},{d:'08-20',p:6340,pt:95100},{d:'08-21',p:7800,pt:117000},{d:'08-22',p:9200,pt:138000},{d:'08-23',p:11500,pt:172500},{d:'08-24',p:12847,pt:192700}
+];
+
+function renderStats() {
+  const filterId = document.getElementById('statsActivityFilter').value;
+  const range = document.getElementById('statsRange').value;
+  const acts = filterId ? activities.filter(a => a.id==filterId) : activities;
+
+  // Aggregate
+  let totalP=0, totalC=0, totalSpt=0, totalMpt=0, totalEx=0, totalMun=0;
+  let totalRevenue=0, totalRechargeP=0, totalClaimed=0, totalSlots=0;
+  let totalMsTiers=0, totalMsUnlocks=0;
+  acts.forEach(a => {
+    const s = mockStats[a.id] || {participants:0,completions:0,shopPts:0,msPts:0,exchanged:0,milestoneUnlocks:0,revenue:0,rechargePlayers:0,claimedRewards:0,totalRewardSlots:0,msTierUnlocks:[]};
+    totalP += s.participants; totalC += s.completions; totalSpt += s.shopPts; totalMpt += s.msPts; totalEx += s.exchanged; totalMun += s.milestoneUnlocks;
+    totalRevenue += s.revenue||0; totalRechargeP += s.rechargePlayers||0;
+    totalClaimed += s.claimedRewards||0; totalSlots += s.totalRewardSlots||0;
+    if(s.msTierUnlocks) { totalMsTiers += s.msTierUnlocks.length; totalMsUnlocks += s.msTierUnlocks.reduce((a,b)=>a+b,0); }
+  });
+  const exRate = totalSpt > 0 ? (totalEx/totalSpt*100).toFixed(1) : '0.0';
+  const avgPts = totalP > 0 ? Math.round(totalSpt/totalP) : 0;
+  const compRate = totalP > 0 ? (totalC/totalP*100).toFixed(1) : '0.0';
+  const msUnlockRate = totalMsTiers > 0 ? (totalMsUnlocks/totalMsTiers/Math.max(totalP,1)*100).toFixed(1) : '0.0';
+  const claimRate = totalSlots > 0 ? (totalClaimed/totalSlots*100).toFixed(1) : '0.0';
+  const retainRate = totalSpt > 0 ? ((totalSpt-totalEx)/totalSpt*100).toFixed(1) : '0.0';
+
+  // Overview cards
+  document.getElementById('statsOverview').innerHTML = `
+    <div class="stat-card"><div class="stat-label">总参与人次</div><div class="stat-value blue">${totalP.toLocaleString()}</div></div>
+    <div class="stat-card"><div class="stat-label">任务完成次数</div><div class="stat-value green">${totalC.toLocaleString()}</div></div>
+    <div class="stat-card"><div class="stat-label">任务完成率</div><div class="stat-value green">${compRate}%</div></div>
+    <div class="stat-card"><div class="stat-label">充值总额</div><div class="stat-value red">¥${totalRevenue.toLocaleString()}</div><div class="stat-sub">${totalRechargeP.toLocaleString()} 人充值</div></div>
+    <div class="stat-card"><div class="stat-label">积分发放总量</div><div class="stat-value orange">${totalSpt.toLocaleString()}</div></div>
+    <div class="stat-card"><div class="stat-label">人均获得积分</div><div class="stat-value orange">${avgPts.toLocaleString()}</div></div>
+    <div class="stat-card"><div class="stat-label">积分兑换率</div><div class="stat-value red">${exRate}%</div></div>
+    <div class="stat-card"><div class="stat-label">积分留存率</div><div class="stat-value purple">${retainRate}%</div></div>
+    <div class="stat-card"><div class="stat-label">奖励领取率</div><div class="stat-value green">${claimRate}%</div><div class="stat-sub">${totalClaimed.toLocaleString()} / ${totalSlots.toLocaleString()}</div></div>
+    <div class="stat-card"><div class="stat-label">里程碑解锁率</div><div class="stat-value orange">${msUnlockRate}%</div></div>
+  `;
+
+  // Trend charts
+  const maxP = Math.max(...dailyTrend.map(d=>d.p));
+  const maxPt = Math.max(...dailyTrend.map(d=>d.pt));
+  document.getElementById('chartParticipation').innerHTML = dailyTrend.map(d => `
+    <div class="chart-col"><div class="chart-val">${(d.p/1000).toFixed(1)}k</div><div class="chart-bar blue" style="height:${d.p/maxP*100}%"></div><div class="chart-label">${d.d.slice(5)}</div></div>
+  `).join('');
+  document.getElementById('chartPoints').innerHTML = dailyTrend.map(d => `
+    <div class="chart-col"><div class="chart-val">${(d.pt/10000).toFixed(1)}万</div><div class="chart-bar orange" style="height:${d.pt/maxPt*100}%"></div><div class="chart-label">${d.d.slice(5)}</div></div>
+  `).join('');
+
+  // Task completion rank
+  let allTasks = [];
+  acts.forEach(a => { const s = mockStats[a.id]; if(s) s.taskNames.forEach((n,i) => allTasks.push({name:n,comps:s.taskComps[i],act:a.name,participants:s.participants,avgMin:s.taskAvgMin?s.taskAvgMin[i]:0})); });
+  allTasks.sort((a,b)=>b.comps-a.comps);
+  document.getElementById('rankTask').innerHTML = allTasks.slice(0,5).map((t,i) => `
+    <li class="rank-item"><div class="rank-num ${i<3?'r'+(i+1):'rn'}">${i+1}</div><div class="rank-info"><div class="rank-name">${t.name}</div><div class="rank-sub">${t.act}</div></div><div class="rank-val">${t.comps.toLocaleString()} 次</div></li>
+  `).join('') || '<li class="rank-item" style="justify-content:center;color:#bfbfbf;">暂无数据</li>';
+
+  // Task detail table
+  document.getElementById('taskDetailBody').innerHTML = allTasks.map(t => {
+    const rate = t.participants > 0 ? (t.comps/t.participants*100).toFixed(1) : '0.0';
+    const avgTime = t.avgMin > 0 ? t.avgMin + '分钟' : '-';
+    return `<tr><td>${t.name}</td><td>${t.act}</td><td>${t.comps.toLocaleString()}</td><td>${rate}%</td><td>${avgTime}</td></tr>`;
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#bfbfbf;">暂无数据</td></tr>';
+
+  // Shop exchange rank
+  let allShop = [];
+  acts.forEach(a => { const s = mockStats[a.id]; if(s) s.shopItems.forEach((n,i) => allShop.push({name:n,exchanges:s.shopExchanges[i],act:a.name,stock:s.shopStock?s.shopStock[i]:0,maxStock:s.shopMaxStock?s.shopMaxStock[i]:0})); });
+  allShop.sort((a,b)=>b.exchanges-a.exchanges);
+  document.getElementById('rankShop').innerHTML = allShop.slice(0,5).map((s,i) => `
+    <li class="rank-item"><div class="rank-num ${i<3?'r'+(i+1):'rn'}">${i+1}</div><div class="rank-info"><div class="rank-name">${s.name}</div><div class="rank-sub">${s.act}</div></div><div class="rank-val">${s.exchanges.toLocaleString()} 次</div></li>
+  `).join('') || '<li class="rank-item" style="justify-content:center;color:#bfbfbf;">暂无数据</li>';
+
+  // Milestone stats - use tier data
+  let msHtml = '';
+  acts.forEach(a => {
+    const s = mockStats[a.id];
+    if (!s || !s.msTierNames || !s.msTierUnlocks) return;
+    msHtml += `<div style="margin-bottom:16px;">
+      <div style="font-weight:600;margin-bottom:8px;color:#595959;">${a.name}</div>`;
+    s.msTierNames.forEach((name, i) => {
+      const unlocks = s.msTierUnlocks[i] || 0;
+      const rate = s.participants > 0 ? (unlocks/s.participants*100).toFixed(1) : '0.0';
+      const barW = s.participants > 0 ? Math.min(unlocks/s.participants*100, 100) : 0;
+      msHtml += `<div style="display:flex;align-items:center;gap:12px;padding:6px 0 6px 16px;">
+        <div style="width:100px;font-size:13px;color:#595959;">${name}</div>
+        <div style="flex:1;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;"><div style="height:100%;width:${barW}%;background:#fa8c16;border-radius:4px;"></div></div>
+        <div style="width:120px;font-size:13px;text-align:right;"><strong style="color:#fa8c16;">${unlocks.toLocaleString()}</strong> 人 (${rate}%)</div>
+      </div>`;
+    });
+    msHtml += '</div>';
+  });
+  document.getElementById('milestoneStats').innerHTML = msHtml || '<div style="text-align:center;color:#bfbfbf;padding:20px;">暂无里程碑数据</div>';
+
+  // Detail table
+  document.getElementById('statsDetailBody').innerHTML = acts.map(a => {
+    const s = mockStats[a.id] || {participants:0,completions:0,shopPts:0,msPts:0,exchanged:0,milestoneUnlocks:0,revenue:0,claimedRewards:0,totalRewardSlots:0,msTierUnlocks:[]};
+    const exRate = s.shopPts>0?(s.exchanged/s.shopPts*100).toFixed(1):'0.0';
+    const avgPts = s.participants>0?Math.round(s.shopPts/s.participants):0;
+    const compRate = s.participants>0?(s.completions/s.participants*100).toFixed(1):'0.0';
+    const retainRate = s.shopPts>0?((s.shopPts-s.exchanged)/s.shopPts*100).toFixed(1):'0.0';
+    const claimRate = s.totalRewardSlots>0?(s.claimedRewards/s.totalRewardSlots*100).toFixed(1):'0.0';
+    const msTotal = s.msTierUnlocks?s.msTierUnlocks.reduce((a,b)=>a+b,0):0;
+    const msRate = s.msTierUnlocks&&s.msTierUnlocks.length>0&&s.participants>0?(msTotal/s.msTierUnlocks.length/s.participants*100).toFixed(1):'0.0';
+    return `<tr>
+      <td><strong>${a.name}</strong></td><td>${getStatusTag(a.status)}</td>
+      <td>${s.participants.toLocaleString()}</td><td>${s.completions.toLocaleString()}</td><td>${compRate}%</td>
+      <td>${s.shopPts.toLocaleString()}</td><td>${avgPts.toLocaleString()}</td>
+      <td>${s.exchanged.toLocaleString()}</td><td>${exRate}%</td><td>${retainRate}%</td>
+      <td>${claimRate}%</td><td>¥${(s.revenue||0).toLocaleString()}</td>
+      <td>${s.milestoneUnlocks.toLocaleString()}</td><td>${msRate}%</td>
+    </tr>`;
+  }).join('');
+
+  // Shop stock stats
+  let stockHtml = '';
+  acts.forEach(a => {
+    const s = mockStats[a.id];
+    if (!s || !s.shopItems) return;
+    stockHtml += `<div style="margin-bottom:12px;"><div style="font-weight:600;margin-bottom:6px;color:#595959;">${a.name}</div>`;
+    s.shopItems.forEach((name, i) => {
+      const exchanged = s.shopExchanges[i] || 0;
+      const stock = s.shopStock ? s.shopStock[i] : 0;
+      const maxStock = s.shopMaxStock ? s.shopMaxStock[i] : 0;
+      const usedRate = maxStock > 0 ? (exchanged/maxStock*100).toFixed(1) : '0.0';
+      const barColor = usedRate > 80 ? '#ff4d4f' : usedRate > 50 ? '#faad14' : '#52c41a';
+      stockHtml += `<div style="display:flex;align-items:center;gap:10px;padding:5px 0 5px 12px;">
+        <div style="width:130px;font-size:13px;color:#595959;">${name}</div>
+        <div style="flex:1;height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden;"><div style="height:100%;width:${usedRate}%;background:${barColor};border-radius:3px;"></div></div>
+        <div style="width:160px;font-size:12px;text-align:right;color:#8c8c8c;">已换 ${exchanged.toLocaleString()} / 剩余 ${stock.toLocaleString()}</div>
+      </div>`;
+    });
+    stockHtml += '</div>';
+  });
+  document.getElementById('shopStockStats').innerHTML = stockHtml || '<div style="text-align:center;color:#bfbfbf;padding:20px;">暂无数据</div>';
+
+  // Peak hour stats
+  let peakHtml = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">';
+  acts.forEach(a => {
+    const s = mockStats[a.id];
+    if (!s || !s.peakHour) return;
+    peakHtml += `<div style="text-align:center;padding:16px;background:#fafafa;border-radius:8px;">
+      <div style="font-weight:600;color:#595959;margin-bottom:8px;">${a.name}</div>
+      <div style="font-size:28px;font-weight:700;color:#1890ff;">${s.peakHour}:00</div>
+      <div style="font-size:12px;color:#8c8c8c;margin-top:4px;">峰值活跃时段</div>
+    </div>`;
+  });
+  peakHtml += '</div>';
+  document.getElementById('peakHourStats').innerHTML = peakHtml || '<div style="text-align:center;color:#bfbfbf;padding:20px;">暂无数据</div>';
+}
+
+function exportStats() {
+  alert('📥 报表导出功能（对接后端时实现）');
+}
+
+function openActivity(id) {
+  currentActivityId = id;
+  const a = activities.find(x => x.id === id);
+  if (!a) return;
+  document.getElementById('view-list').style.display = 'none';
+  document.getElementById('view-edit').style.display = '';
+  document.getElementById('view-stats').style.display = 'none';
+  document.getElementById('headerBack').style.display = '';
+  document.getElementById('pageTitle').textContent = `编辑活动 · ${a.name}`;
+  document.querySelectorAll('.menu-item')[0].classList.remove('active');
+  document.querySelectorAll('.menu-item')[1].classList.remove('active');
+
+  document.getElementById('f_name').value = a.name;
+  document.getElementById('f_type').value = a.type;
+  document.getElementById('f_start').value = a.start;
+  document.getElementById('f_end').value = a.end;
+  document.getElementById('f_refresh').value = a.refresh;
+  document.getElementById('f_refreshTime').value = a.refreshTime||'05:00';
+  document.getElementById('f_desc').value = a.desc||'';
+  document.getElementById('f_banner').value = a.banner||'';
+  document.getElementById('f_entryImg').value = a.entryImg||'';
+  document.getElementById('f_carouselImg').value = a.carouselImg||'';
+  document.getElementById('f_rules').value = a.rules||'';
+  document.getElementById('f_whitelistMode').value = a.whitelistMode||'全量用户';
+  document.getElementById('f_whitelistIds').value = (a.whitelistIds||[]).join('\n');
+  toggleActivityWhitelistInput();
+
+  switchTab('tasks');
+  renderTasks();
+  renderShop();
+  renderMilestones();
+}
+
+// ==================== Tabs ====================
+function switchTab(tab) {
+  document.querySelectorAll('#subTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tab));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id==='tab-'+tab));
+}
+
+// ==================== Milestone Dim Tabs ====================
+function switchMsDim(dim) {
+  currentMsDim = dim;
+  document.querySelectorAll('#msDimTabs .ms-tab').forEach(t => t.classList.toggle('active', t.dataset.dim===dim));
+  const infos = {
+    personal: '<div class="info-box"><span>👤</span><div><strong>个人里程碑</strong> — 根据每位玩家个人在本活动中累计获得的里程碑积分解锁。达标后个人可领取奖励。</div></div>',
+    team: '<div class="info-box" style="background:#f6ffed;border-color:#b7eb8f;color:#389e0d;"><span>👥</span><div><strong>战队里程碑</strong> — 根据战队内所有成员在本活动中累计获得的里程碑积分总和解锁。达标后战队成员均可领取奖励。</div></div>',
+    server: '<div class="info-box" style="background:#fff7e6;border-color:#ffd591;color:#ad6800;"><span>🌐</span><div><strong>全服里程碑</strong> — 根据全服所有玩家在本活动中累计获得的里程碑积分总和解锁。达标后全服玩家均可领取奖励。</div></div>',
+  };
+  document.getElementById('msDimInfo').innerHTML = infos[dim]||'';
+  renderMilestones();
+}
+
+// ==================== Tasks ====================
+function renderTasks() {
+  const a = activities.find(x => x.id === currentActivityId);
+  if (!a) return;
+  const filter = document.getElementById('taskTypeFilter').value;
+  const list = filter ? a.tasks.filter(t => t.type===filter) : a.tasks;
+  document.getElementById('taskCount').textContent = a.tasks.length;
+
+  const el = document.getElementById('taskList');
+  if (!list.length) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div class="text">暂无任务，点击右上角「新建任务」添加</div></div>';
+    return;
+  }
+  el.innerHTML = list.map(t => {
+    const i = a.tasks.indexOf(t);
+    const refreshTag = t.refresh==='不刷新' ? '<span class="tag tag-gray">不刷新</span>' : `<span class="tag tag-blue">${t.refresh}刷新</span>`;
+    const onlineTag = t.onlineStatus==='上线' ? '<span class="tag tag-green">已上线</span>' : '<span class="tag tag-gray">已下线</span>';
+    const whitelistTag = t.whitelistMode==='指定ID' ? `<span class="tag tag-orange">白名单(${(t.whitelistIds||[]).length}人)</span>` : '<span class="tag tag-blue">全量用户</span>';
+    const hasCode = t.customCode && t.customCode.trim();
+    return `<div class="task-card">
+      <div class="task-top">
+        <div class="task-title">${getTaskTypeIcon(t.type)} ${t.name} ${onlineTag}
+          ${refreshTag}
+          ${t.rewardMode==='random'?'<span class="tag tag-blue">随机发放</span>':''}
+          ${t.points>0?`<span class="tag tag-purple">+${t.points}积分</span>`:''}
+          ${whitelistTag}
+          ${hasCode?'<span class="tag tag-orange">自定义代码</span>':''}
+        </div>
+        <div class="task-actions">
+          <button class="btn btn-sm ${t.onlineStatus==='上线'?'btn-success':'btn-outline'}" onclick="toggleTaskOnline(${i})" title="切换上线/下线">${t.onlineStatus==='上线'?'🟢 上线':'⚫ 下线'}</button>
+          <button class="btn btn-sm" onclick="editTask(${i})">编辑</button>
+          <button class="btn btn-sm" onclick="copyTask(${i})">复制</button>
+          <button class="btn btn-sm btn-danger" onclick="confirmDeleteTask(${i})">删除</button>
+        </div>
+      </div>
+      <div class="task-meta">
+        <span>📋 类型：${t.type}</span><span>🎯 目标：${t.target}</span>
+        <span>⏱ 每周期：${t.maxTimes||'无限'}</span><span>📊 活动期：${t.totalMaxTimes||'不限'}</span>
+        ${t.activeStartTime?`<span>⏰ 生效：${formatDateTime(t.activeStartTime)} ~ ${t.activeEndTime?formatDateTime(t.activeEndTime):'永久'}</span>`:''}
+        <span>👤 白名单：${t.whitelistMode==='指定ID'?(t.whitelistIds||[]).join(', ')||'无' :'全量用户'}</span>
+      </div>
+      <div class="task-reward-bar"><span class="label">🎁 奖励：</span>${formatReward(t.rewardList, t.rewardMode, t.rewardCount)}
+        ${t.points>0?`<span class="tag tag-purple">+${t.points} 积分×2（商城+里程碑）</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleTaskOnline(idx) {
+  const a = activities.find(x => x.id===currentActivityId);
+  a.tasks[idx].onlineStatus = a.tasks[idx].onlineStatus==='上线' ? '下线' : '上线';
+  renderTasks();
+}
+
+function showCreateTask() {
+  editingTaskIdx = null;
+  document.getElementById('taskModalTitle').textContent = '新建任务';
+  ['t_type','t_name'].forEach(id => document.getElementById(id).value = id==='t_type'?'登录':'');
+  document.getElementById('t_target').value = 1;
+  document.getElementById('t_maxTimes').value = 1;
+  document.getElementById('t_totalMaxTimes').value = 0;
+  document.getElementById('t_refresh').value = '不刷新';
+  document.getElementById('t_points').value = 0;
+  document.getElementById('t_rewardMode').value = 'all';
+  document.getElementById('t_rewardCount').value = 1;
+  document.getElementById('rewardCountWrap').style.display = 'none';
+  document.getElementById('t_customCode').value = '';
+  document.getElementById('t_activeStartTime').value = '';
+  document.getElementById('t_activeEndTime').value = '';
+  document.getElementById('t_onlineStatus').value = '上线';
+  document.getElementById('t_whitelistMode').value = '全量用户';
+  document.getElementById('t_whitelistIds').value = '';
+  document.getElementById('whitelistInputWrap').style.display = 'none';
+  document.getElementById('t_targetMode').innerHTML = '<option value="">— 请先选择任务类型 —</option>';
+  document.getElementById('targetModeHint').textContent = '';
+  document.getElementById('t_targetIds').value = '';
+  document.getElementById('wrap-targetIds').style.display = 'none';
+  currentRewardList = [];
+  renderRewardList();
+  openModal('modal-task');
+}
+
+function editTask(idx) {
+  const a = activities.find(x => x.id===currentActivityId);
+  const t = a.tasks[idx];
+  editingTaskIdx = idx;
+  document.getElementById('taskModalTitle').textContent = '编辑任务';
+  document.getElementById('t_type').value = t.type;
+  document.getElementById('t_name').value = t.name;
+  document.getElementById('t_target').value = t.target;
+  document.getElementById('t_maxTimes').value = t.maxTimes;
+  document.getElementById('t_totalMaxTimes').value = t.totalMaxTimes||0;
+  document.getElementById('t_refresh').value = t.refresh||'不刷新';
+  document.getElementById('t_points').value = t.points;
+  document.getElementById('t_rewardMode').value = t.rewardMode||'all';
+  document.getElementById('t_rewardCount').value = t.rewardCount||1;
+  document.getElementById('rewardCountWrap').style.display = (t.rewardMode==='random'||t.rewardMode==='choose') ? '' : 'none';
+  document.getElementById('t_customCode').value = t.customCode||'';
+  document.getElementById('t_activeStartTime').value = t.activeStartTime||'';
+  document.getElementById('t_activeEndTime').value = t.activeEndTime||'';
+  document.getElementById('t_onlineStatus').value = t.onlineStatus||'上线';
+  document.getElementById('t_whitelistMode').value = t.whitelistMode||'全量用户';
+  document.getElementById('t_whitelistIds').value = (t.whitelistIds||[]).join('\n');
+  document.getElementById('whitelistInputWrap').style.display = (t.whitelistMode||'全量用户')==='指定ID'?'':'none';
+
+  // 目标模式
+  const opts = TARGET_MODE_OPTIONS[t.type]||[];
+  document.getElementById('t_targetMode').innerHTML = opts.map(o=>`<option value="${o.value}">${o.label}</option>`).join('');
+  const savedMode = t.targetMode||'any';
+  document.getElementById('t_targetMode').value = savedMode;
+  document.getElementById('t_targetIds').value = (t.targetIds||[]).join('\n');
+  document.getElementById('targetModeHint').textContent = (opts.find(o=>o.value===savedMode)||{}).hint||'';
+  document.getElementById('wrap-targetIds').style.display   = (savedMode==='or'||savedMode==='and'||savedMode==='pool'||savedMode==='count_all'||savedMode==='count_new')   ? '' : 'none';
+  currentRewardList = (t.rewardList||[]).map(r => ({...r}));
+  renderRewardList();
+  openModal('modal-task');
+}
+
+// ==================== 目标模式配置 ====================
+const TARGET_MODE_OPTIONS = {
+  '登录':   [{ value:'any',    label:'任意登录',           hint:'完成任意一次登录即可' }],
+  '签到':   [{ value:'any',    label:'任意签到',           hint:'完成任意一次签到即可' }],
+  '充值':   [{ value:'count',  label:'累计充值次数',       hint:'累计充值达到指定次数' },
+              { value:'amount', label:'累计充值金额（元）', hint:'累计充值达到指定金额' }],
+  '送礼':   [{ value:'any',    label:'任意礼物',           hint:'赠送任意礼物累计达到次数即可，无需指定ID' },
+              { value:'pool',   label:'指定礼物（累计满足）', hint:'所有指定礼物共享计数，赠送任意礼物都+1，累计达到次数' },
+              { value:'or',     label:'指定礼物（任意满足）', hint:'单个指定礼物独立达到次数即可，其他不用管' },
+              { value:'and',    label:'指定礼物（全部完成）', hint:'指定列表中每种礼物都需分别达到指定次数' }],
+  '通关':   [{ value:'any',    label:'任意玩法',           hint:'通关任意玩法累计达到次数即可，无需指定ID' },
+              { value:'pool',   label:'指定玩法（累计满足）', hint:'所有指定玩法共享计数，通关任意玩法都+1，累计达到次数' },
+              { value:'or',     label:'指定玩法（任意满足）', hint:'单个指定玩法独立达到次数即可，其他不用管' },
+              { value:'and',    label:'指定玩法（全部完成）', hint:'指定列表中每种玩法都需分别达到指定次数' }],
+  '自定义': [{ value:'any',    label:'任意触发',           hint:'任意触发即可完成' },
+              { value:'or',     label:'指定触发（任意满足）', hint:'从指定ID列表中累计完成指定次数即可' },
+              { value:'and',    label:'指定触发（全部完成）', hint:'指定ID列表中每种都需完成指定次数' }],
+  '消耗物品': [{ value:'pool',   label:'消耗指定物品（累计满足）', hint:'所有指定物品共享计数，消耗任意物品都+1，累计达到次数' },
+              { value:'or',     label:'消耗指定物品（任意满足）', hint:'单个指定物品独立达到次数即可，其他不用管' },
+              { value:'and',    label:'消耗指定物品（全部完成）', hint:'指定列表中每种物品都需分别消耗指定次数' }],
+  '在线时间': [{ value:'any',    label:'累计在线时长',           hint:'活动期间累计在线达到指定时长（分钟）' }],
+  '完成UGC购买': [{ value:'pool', label:'完成指定服饰UGC购买（累计满足）', hint:'所有指定UGC共享计数，购买任意UGC都+1，累计达到次数' },
+              { value:'or',     label:'完成指定服饰UGC购买（任意满足）', hint:'单个指定UGC独立达到次数即可，其他不用管' },
+              { value:'and',    label:'完成指定服饰UGC购买（全部完成）', hint:'指定列表中每种UGC都需分别购买指定次数' }],
+  '拥有指定道具': [{ value:'count_all',  label:'拥有指定道具（计算背包内所有）', hint:'统计背包中指定ID物品的总数量' },
+              { value:'count_new', label:'拥有指定道具（活动开启后新获得）', hint:'仅统计活动开启后新获得的指定ID物品数量' }]
+};
+
+function refreshTargetModeOptions() {
+  const type = document.getElementById('t_type').value;
+  const select = document.getElementById('t_targetMode');
+  const hint  = document.getElementById('targetModeHint');
+  if (!type) { select.innerHTML='<option value="">— 请先选择任务类型 —</option>'; hint.textContent=''; return; }
+  const opts = TARGET_MODE_OPTIONS[type] || [];
+  select.innerHTML = opts.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+  hint.textContent = opts[0] ? opts[0].hint : '';
+  toggleTargetModeInput();
+}
+
+function toggleTargetModeInput() {
+  const type = document.getElementById('t_type').value;
+  const mode = document.getElementById('t_targetMode').value;
+  const wrapIds   = document.getElementById('wrap-targetIds');
+  const hint      = document.getElementById('targetIdsHint');
+  const opts      = (TARGET_MODE_OPTIONS[type]||[]).find(o=>o.value===mode);
+  const showIds   = mode==='or'||mode==='and'||mode==='pool'||mode==='count_all'||mode==='count_new';
+  if (hint) hint.textContent = opts ? opts.hint : '';
+  wrapIds.style.display   = showIds   ? '' : 'none';
+}
+
+let currentRewardList = [];
+
+let currentShopRewardList = [];
+let currentMsRewardList = [];
+
+function renderShopRewardList() {
+  const el = document.getElementById('s_rewardList');
+  if (!currentShopRewardList.length) {
+    el.innerHTML = '<div style="color:#bfbfbf;padding:8px 0;">暂无奖励物品，点击下方添加</div>';
+    return;
+  }
+  el.innerHTML = currentShopRewardList.map((r, i) => `
+    <div class="reward-item-row">
+      <input type="number" value="${r.id}" placeholder="物品ID" onchange="currentShopRewardList[${i}].id=parseInt(this.value)||0">
+      <input type="number" value="${r.amount}" placeholder="数量" onchange="currentShopRewardList[${i}].amount=parseInt(this.value)||1">
+      <button class="btn btn-sm btn-danger" onclick="currentShopRewardList.splice(${i},1);renderShopRewardList()">删除</button>
+    </div>
+  `).join('');
+}
+function addShopRewardItem() {
+  currentShopRewardList.push({id:0,amount:1});
+  renderShopRewardList();
+}
+
+function renderMsRewardList() {
+  const el = document.getElementById('m_rewardList');
+  if (!currentMsRewardList.length) {
+    el.innerHTML = '<div style="color:#bfbfbf;padding:8px 0;">暂无奖励物品，点击下方添加</div>';
+    return;
+  }
+  el.innerHTML = currentMsRewardList.map((r, i) => `
+    <div class="reward-item-row">
+      <input type="number" value="${r.id}" placeholder="物品ID" onchange="currentMsRewardList[${i}].id=parseInt(this.value)||0">
+      <input type="number" value="${r.amount}" placeholder="数量" onchange="currentMsRewardList[${i}].amount=parseInt(this.value)||1">
+      <button class="btn btn-sm btn-danger" onclick="currentMsRewardList.splice(${i},1);renderMsRewardList()">删除</button>
+    </div>
+  `).join('');
+}
+function addMsRewardItem() {
+  currentMsRewardList.push({id:0,amount:1});
+  renderMsRewardList();
+}
+
+function toggleActivityWhitelistInput() {
+  const mode = document.getElementById('f_whitelistMode').value;
+  document.getElementById('f_whitelistIds').closest('.form-item').style.display = mode === '指定ID' ? '' : 'none';
+}
+
+function toggleWhitelistInput() {
+  const mode = document.getElementById('t_whitelistMode').value;
+  document.getElementById('whitelistInputWrap').style.display = mode === '指定ID' ? '' : 'none';
+}
+
+function toggleShopWhitelistInput() {
+  const mode = document.getElementById('s_whitelistMode').value;
+  document.getElementById('shopWhitelistWrap').style.display = mode === '指定ID' ? '' : 'none';
+}
+
+function toggleMilestoneWhitelistInput() {
+  const mode = document.getElementById('m_whitelistMode').value;
+  document.getElementById('milestoneWhitelistWrap').style.display = mode === '指定ID' ? '' : 'none';
+}
+function toggleRewardCountInput() {
+  const mode = document.getElementById('t_rewardMode').value;
+  document.getElementById('rewardCountWrap').style.display = (mode === 'random' || mode === 'choose') ? '' : 'none';
+}
+function renderRewardList() {
+  const el = document.getElementById('t_rewardList');
+  if (!currentRewardList.length) {
+    el.innerHTML = '<div style="color:#bfbfbf;padding:8px 0;">暂无奖励物品，点击下方添加</div>';
+    return;
+  }
+  el.innerHTML = currentRewardList.map((r, i) => `
+    <div class="reward-item-row">
+      <input type="number" value="${r.id}" placeholder="物品ID" onchange="currentRewardList[${i}].id=parseInt(this.value)||0">
+      <input type="number" value="${r.amount}" placeholder="数量" onchange="currentRewardList[${i}].amount=parseInt(this.value)||1">
+      <button class="btn btn-sm btn-danger" onclick="currentRewardList.splice(${i},1);renderRewardList()">删除</button>
+    </div>
+  `).join('');
+}
+function addRewardItem() {
+  currentRewardList.push({id:0,amount:1});
+  renderRewardList();
+}
+
+function confirmSaveTask() {
+  const a = activities.find(x => x.id===currentActivityId);
+  const whitelistIds = document.getElementById('t_whitelistIds').value.split('\n').map(s=>s.trim()).filter(s=>s);
+  const targetIds = document.getElementById('t_targetIds').value.split('\n').map(s=>s.trim()).filter(s=>s);
+  const data = {
+    type: document.getElementById('t_type').value,
+    name: document.getElementById('t_name').value.trim(),
+    targetMode: document.getElementById('t_targetMode').value || 'any',
+    targetIds: targetIds,
+    target: parseInt(document.getElementById('t_target').value)||1,
+    maxTimes: parseInt(document.getElementById('t_maxTimes').value)||0,
+    totalMaxTimes: parseInt(document.getElementById('t_totalMaxTimes').value)||0,
+    refresh: document.getElementById('t_refresh').value,
+    points: parseInt(document.getElementById('t_points').value)||0,
+    rewardMode: document.getElementById('t_rewardMode').value,
+    rewardCount: parseInt(document.getElementById('t_rewardCount').value)||1,
+    rewardList: currentRewardList.map(r => ({...r})),
+    customCode: document.getElementById('t_customCode').value.trim(),
+    activeStartTime: document.getElementById('t_activeStartTime').value||'',
+    activeEndTime: document.getElementById('t_activeEndTime').value||'',
+    onlineStatus: document.getElementById('t_onlineStatus').value,
+    whitelistMode: document.getElementById('t_whitelistMode').value,
+    whitelistIds: whitelistIds
+  };
+  if (!data.name) { alert('请输入任务名称'); return; }
+  if (editingTaskIdx!==null) { data.id=a.tasks[editingTaskIdx].id; a.tasks[editingTaskIdx]=data; }
+  else { data.id=Date.now(); a.tasks.push(data); }
+  closeModal(document.getElementById('modal-task'));
+  renderTasks();
+}
+
+function confirmDeleteTask(idx) {
+  const a = activities.find(x => x.id===currentActivityId);
+  showConfirm('确认删除任务', `确定要删除任务「${a.tasks[idx].name}」吗？`, () => { a.tasks.splice(idx,1); renderTasks(); });
+}
+
+function copyTask(idx) {
+  const a = activities.find(x => x.id===currentActivityId);
+  if (!a) return;
+  const src = a.tasks[idx];
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = nextId++;
+  copy.name = src.name + '（副本）';
+  copy.onlineStatus = '下线';
+  a.tasks.push(copy);
+  renderTasks();
+}
+
+// ==================== Shop ====================
+function renderShop() {
+  const a = activities.find(x => x.id===currentActivityId);
+  if (!a) return;
+  document.getElementById('shopCount').textContent = a.shop.length;
+  // Show mock point balance
+  const totalShopPts = a.tasks.reduce((s,t) => s + (t.points||0), 0);
+
+  const tbody = document.getElementById('shopTableBody');
+  if (!a.shop.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="icon">🛍️</div><div class="text">暂无商品，点击「添加商品」配置</div></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = a.shop.map((s,i) => {
+    const onlineTag = s.onlineStatus==='上线' ? '<span class="tag tag-green">上线</span>' : '<span class="tag tag-gray">下线</span>';
+    const whitelistTag = s.whitelistMode==='指定ID' ? `<span class="tag tag-orange">白名单(${(s.whitelistIds||[]).length}人)</span>` : '<span class="tag tag-blue">全量</span>';
+    return `<tr>
+      <td>${s.id}</td><td>${(s.rewardList||[]).map(r=>'<span class="tag tag-orange">#'+r.id+' ×'+r.amount+'</span>').join(' ')}</td>
+      <td><strong style="color:#fa8c16;">${s.cost}</strong></td><td>${s.limit>0?s.limit+'次/人':'不限'}</td>
+      <td>${s.activeStartTime?formatDateTime(s.activeStartTime)+' ~ '+(s.activeEndTime?formatDateTime(s.activeEndTime):'永久'):'立即'}</td>
+      <td>${onlineTag} ${whitelistTag}</td>
+      <td><div class="btn-group"><button class="btn btn-sm" onclick="editShop(${i})">编辑</button><button class="btn btn-sm btn-danger" onclick="confirmDeleteShop(${i})">删除</button></div></td>
+    </tr>`;
+  }).join('');
+}
+
+function showCreateShop() {
+  editingShopIdx = null;
+  document.getElementById('shopModalTitle').textContent = '添加积分商品';
+  currentShopRewardList = [];
+  renderShopRewardList();
+  document.getElementById('s_cost').value='';
+  document.getElementById('s_limit').value=0;
+  document.getElementById('s_activeStartTime').value='';
+  document.getElementById('s_activeEndTime').value='';
+  document.getElementById('s_onlineStatus').value='上线';
+  document.getElementById('s_whitelistMode').value='全量用户';
+  document.getElementById('s_whitelistIds').value='';
+  document.getElementById('shopWhitelistWrap').style.display='none';
+  openModal('modal-shop');
+}
+
+function editShop(idx) {
+  const s = activities.find(x=>x.id===currentActivityId).shop[idx];
+  editingShopIdx = idx;
+  document.getElementById('shopModalTitle').textContent = '编辑积分商品';
+  currentShopRewardList = (s.rewardList||[]).map(r=>({...r}));
+  renderShopRewardList();
+  document.getElementById('s_cost').value=s.cost;
+  document.getElementById('s_limit').value=s.limit;
+  document.getElementById('s_activeStartTime').value=s.activeStartTime||'';
+  document.getElementById('s_activeEndTime').value=s.activeEndTime||'';
+  document.getElementById('s_onlineStatus').value=s.onlineStatus||'上线';
+  document.getElementById('s_whitelistMode').value=s.whitelistMode||'全量用户';
+  document.getElementById('s_whitelistIds').value=(s.whitelistIds||[]).join('\n');
+  document.getElementById('shopWhitelistWrap').style.display=(s.whitelistMode||'全量用户')==='指定ID'?'':'none';
+  openModal('modal-shop');
+}
+
+function confirmSaveShop() {
+  const a = activities.find(x=>x.id===currentActivityId);
+  const whitelistIds = document.getElementById('s_whitelistIds').value.split('\n').map(s=>s.trim()).filter(s=>s);
+  const data = {
+    rewardList: currentShopRewardList.map(r=>({...r})),
+    cost: parseInt(document.getElementById('s_cost').value)||0,
+    limit: parseInt(document.getElementById('s_limit').value)||0,
+    activeStartTime: document.getElementById('s_activeStartTime').value||'',
+    activeEndTime: document.getElementById('s_activeEndTime').value||'',
+    onlineStatus: document.getElementById('s_onlineStatus').value,
+    whitelistMode: document.getElementById('s_whitelistMode').value,
+    whitelistIds: whitelistIds
+  };
+  if (!data.rewardList.length) { alert('请至少添加一个奖励物品'); return; }
+  if (!data.cost) { alert('请输入所需积分'); return; }
+  if (editingShopIdx!==null) { data.id=a.shop[editingShopIdx].id; a.shop[editingShopIdx]=data; }
+  else { data.id=Date.now(); a.shop.push(data); }
+  closeModal(document.getElementById('modal-shop'));
+  renderShop();
+}
+
+function confirmDeleteShop(idx) {
+  const a = activities.find(x=>x.id===currentActivityId);
+  const s = a.shop[idx];
+  const desc = (s.rewardList||[]).map(r=>'#'+r.id+'×'+r.amount).join(', ') || '未知';
+  showConfirm('确认删除商品', `确定要删除商品「${desc}」吗？`, () => { a.shop.splice(idx,1); renderShop(); });
+}
+
+// ==================== Milestones ====================
+function renderMilestones() {
+  const a = activities.find(x => x.id===currentActivityId);
+  if (!a) return;
+  const filtered = a.milestones.filter(m => m.dim===currentMsDim).sort((x,y) => x.points-y.points);
+  document.getElementById('msCount').textContent = a.milestones.length;
+
+  // Visual track
+  const track = document.getElementById('msTrack');
+  if (!filtered.length) {
+    track.innerHTML = '<div class="empty-state" style="width:100%"><div class="icon">🏆</div><div class="text">该维度暂无里程碑，点击「添加里程碑」配置</div></div>';
+  } else {
+    track.innerHTML = filtered.map((m,i) => {
+      const dotClass = i<2?'done':i===2?'current':'locked';
+      const lineClass = i<2?'done':i===2?'active':'';
+      let html = `<div class="ms-node"><div class="ms-dot ${dotClass}">${i<2?'✓':(i+1)}</div><div class="ms-pts">${m.points}</div><div class="ms-reward">${formatRewardSimple(m.rewardList)}</div></div>`;
+      if (i<filtered.length-1) html += `<div class="ms-line ${lineClass}"></div>`;
+      return html;
+    }).join('');
+  }
+
+  // Table
+  const tbody = document.getElementById('msTableBody');
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="icon">🏆</div><div class="text">暂无里程碑</div></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map((m,i) => {
+    const ri = a.milestones.indexOf(m);
+    const onlineTag = m.onlineStatus==='上线' ? '<span class="tag tag-green">上线</span>' : '<span class="tag tag-gray">下线</span>';
+    const whitelistTag = m.whitelistMode==='指定ID' ? `<span class="tag tag-orange">白名单(${(m.whitelistIds||[]).length}人)</span>` : '<span class="tag tag-blue">全量</span>';
+    return `<tr>
+      <td>${i+1}</td><td><strong style="color:#fa8c16;">${m.points}</strong></td><td>${formatReward(m.rewardList)}</td>
+      <td>${getDimTag(m.dim)}</td>
+      <td>${m.activeStartTime?formatDateTime(m.activeStartTime)+' ~ '+(m.activeEndTime?formatDateTime(m.activeEndTime):'永久'):'跟随活动'}</td>
+      <td>${onlineTag} ${whitelistTag}</td>
+      <td><div class="btn-group"><button class="btn btn-sm" onclick="editMilestone(${ri})">编辑</button><button class="btn btn-sm btn-danger" onclick="confirmDeleteMilestone(${ri})">删除</button></div></td>
+    </tr>`;
+  }).join('');
+}
+
+function showCreateMilestone() {
+  editingMsIdx = null;
+  document.getElementById('msModalTitle').textContent = '添加里程碑奖励';
+  document.getElementById('m_dim').value = currentMsDim;
+  document.getElementById('m_points').value = '';
+  currentMsRewardList = [];
+  renderMsRewardList();
+  document.getElementById('m_activeStartTime').value = '';
+  document.getElementById('m_activeEndTime').value = '';
+  document.getElementById('m_onlineStatus').value = '上线';
+  document.getElementById('m_whitelistMode').value = '全量用户';
+  document.getElementById('m_whitelistIds').value = '';
+  document.getElementById('milestoneWhitelistWrap').style.display = 'none';
+  openModal('modal-milestone');
+}
+
+function editMilestone(idx) {
+  const m = activities.find(x=>x.id===currentActivityId).milestones[idx];
+  editingMsIdx = idx;
+  document.getElementById('msModalTitle').textContent = '编辑里程碑奖励';
+  document.getElementById('m_dim').value = m.dim;
+  document.getElementById('m_points').value = m.points;
+  currentMsRewardList = (m.rewardList||[]).map(r=>({...r}));
+  renderMsRewardList();
+  document.getElementById('m_activeStartTime').value = m.activeStartTime||'';
+  document.getElementById('m_activeEndTime').value = m.activeEndTime||'';
+  document.getElementById('m_onlineStatus').value = m.onlineStatus||'上线';
+  document.getElementById('m_whitelistMode').value = m.whitelistMode||'全量用户';
+  document.getElementById('m_whitelistIds').value = (m.whitelistIds||[]).join('\n');
+  document.getElementById('milestoneWhitelistWrap').style.display = (m.whitelistMode||'全量用户')==='指定ID'?'':'none';
+  openModal('modal-milestone');
+}
+
+function confirmSaveMilestone() {
+  const a = activities.find(x=>x.id===currentActivityId);
+  const whitelistIds = document.getElementById('m_whitelistIds').value.split('\n').map(s=>s.trim()).filter(s=>s);
+  const data = {
+    dim: document.getElementById('m_dim').value,
+    points: parseInt(document.getElementById('m_points').value)||0,
+    rewardList: currentMsRewardList.map(r=>({...r})),
+    activeStartTime: document.getElementById('m_activeStartTime').value||'',
+    activeEndTime: document.getElementById('m_activeEndTime').value||'',
+    onlineStatus: document.getElementById('m_onlineStatus').value,
+    whitelistMode: document.getElementById('m_whitelistMode').value,
+    whitelistIds: whitelistIds
+  };
+  if (!data.points) { alert('请输入所需积分'); return; }
+  if (!data.rewardList.length) { alert('请至少添加一个奖励物品'); return; }
+  if (editingMsIdx!==null) { data.id=a.milestones[editingMsIdx].id; a.milestones[editingMsIdx]=data; }
+  else { data.id=Date.now(); a.milestones.push(data); }
+  closeModal(document.getElementById('modal-milestone'));
+  currentMsDim = data.dim;
+  document.querySelectorAll('#msDimTabs .ms-tab').forEach(t => t.classList.toggle('active', t.dataset.dim===currentMsDim));
+  renderMilestones();
+}
+
+function confirmDeleteMilestone(idx) {
+  const a = activities.find(x=>x.id===currentActivityId);
+  const m = a.milestones[idx];
+  const dimN = {personal:'个人',team:'战队',server:'全服'}[m.dim];
+  showConfirm('确认删除里程碑', `确定要删除 ${dimN}维度 ${m.points}积分 的里程碑奖励吗？`, () => { a.milestones.splice(idx,1); renderMilestones(); });
+}
+
+// ==================== Create Activity ====================
+function showCreateActivity() {
+  document.getElementById('c_name').value=''; document.getElementById('c_type').value='限时活动';
+  document.getElementById('c_start').value=''; document.getElementById('c_end').value='';
+  document.getElementById('c_refresh').value='不刷新'; document.getElementById('c_refreshTime').value='05:00';
+  openModal('modal-createActivity');
+}
+
+function confirmCreateActivity() {
+  const name = document.getElementById('c_name').value.trim();
+  const start = document.getElementById('c_start').value;
+  if (!name) { alert('请输入活动名称'); return; }
+  if (!start) { alert('请选择开启时间'); return; }
+  const a = {
+    id: nextId++, name,
+    type: document.getElementById('c_type').value,
+    status: '未上线', onlineStatus: '下线',
+    start,
+    end: document.getElementById('c_end').value,
+    refresh: document.getElementById('c_refresh').value,
+    refreshTime: document.getElementById('c_refreshTime').value,
+    desc: '', banner: '', entryImg: '', carouselImg: '', rules: document.getElementById('c_rules').value,
+    whitelistMode: '全量用户', whitelistIds: [],
+    tasks: [], shop: [], milestones: []
+  };
+  activities.unshift(a);
+  closeModal(document.getElementById('modal-createActivity'));
+  renderActivityList();
+  openActivity(a.id);
+}
+
+function saveActivity() {
+  const a = activities.find(x=>x.id===currentActivityId);
+  if (!a) return;
+  a.name = document.getElementById('f_name').value.trim();
+  a.type = document.getElementById('f_type').value;
+  a.start = document.getElementById('f_start').value;
+  a.end = document.getElementById('f_end').value;
+  a.refresh = document.getElementById('f_refresh').value;
+  a.refreshTime = document.getElementById('f_refreshTime').value;
+  a.desc = document.getElementById('f_desc').value;
+  a.banner = document.getElementById('f_banner').value.trim();
+  a.entryImg = document.getElementById('f_entryImg').value.trim();
+  a.carouselImg = document.getElementById('f_carouselImg').value.trim();
+  a.rules = document.getElementById('f_rules').value;
+  a.whitelistMode = document.getElementById('f_whitelistMode').value;
+  a.whitelistIds = document.getElementById('f_whitelistIds').value.split('\n').map(s=>s.trim()).filter(s=>s);
+  if (!a.name) { alert('活动名称不能为空'); return; }
+  document.getElementById('pageTitle').textContent = `编辑活动 · ${a.name}`;
+  const btn = event.target;
+  btn.textContent = '已保存'; btn.style.background = '#52c41a'; btn.style.borderColor = '#52c41a';
+  setTimeout(() => { btn.textContent='保存活动配置'; btn.style.background=''; btn.style.borderColor=''; }, 1500);
+}
+
+function confirmDeleteActivity(id) {
+  const a = activities.find(x=>x.id===id);
+  showConfirm('确认删除活动', `确定要删除活动「${a.name}」吗？<br>该活动下的 ${a.tasks.length} 个任务、${a.shop.length} 个商品、${a.milestones.length} 个里程碑将一并删除。<br><br>此操作不可恢复！`, () => {
+    activities = activities.filter(x=>x.id!==id); renderActivityList();
+  });
+}
+
+function copyActivity(id) {
+  const src = activities.find(x=>x.id===id);
+  if (!src) return;
+  const copy = JSON.parse(JSON.stringify(src));
+  copy.id = nextId++;
+  copy.name = src.name + '（副本）';
+  copy.status = '未上线';
+  copy.onlineStatus = '下线';
+  // Reassign IDs for tasks, shop, milestones
+  copy.tasks.forEach(t => { t.id = nextId++; t.onlineStatus = '下线'; });
+  copy.shop.forEach(s => { s.id = nextId++; s.onlineStatus = '下线'; });
+  copy.milestones.forEach(m => { m.id = nextId++; m.onlineStatus = '下线'; });
+  activities.unshift(copy);
+  renderActivityList();
+  openActivity(copy.id);
+}
+
+let currentPushActivityId = null;
+
+// ==================== Push to Production ====================
+function pushToProduction(activityId) {
+  const a = activities.find(x=>x.id===activityId);
+  if (!a) return;
+  currentPushActivityId = activityId;
+  
+  // Build summary
+  const summary = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div><span style="color:#8c8c8c;">活动名称：</span><strong>${a.name}</strong></div>
+      <div><span style="color:#8c8c8c;">活动类型：</span>${a.type}</div>
+      <div><span style="color:#8c8c8c;">开始时间：</span>${formatDateTime(a.start)}</div>
+      <div><span style="color:#8c8c8c;">结束时间：</span>${formatDateTime(a.end)}</div>
+      <div><span style="color:#8c8c8c;">任务数量：</span>${a.tasks.length} 个</div>
+      <div><span style="color:#8c8c8c;">商品数量：</span>${a.shop.length} 个</div>
+      <div><span style="color:#8c8c8c;">里程碑数量：</span>${a.milestones.length} 个</div>
+      <div><span style="color:#8c8c8c;">Banner图：</span>${a.banner||'未设置'}</div>
+      <div><span style="color:#8c8c8c;">活动中心入口图：</span>${a.entryImg||'未设置'}</div>
+      <div><span style="color:#8c8c8c;">主界面轮播图：</span>${a.carouselImg||'未设置'}</div>
+    </div>
+  `;
+  document.getElementById('pushSummary').innerHTML = summary;
+  document.getElementById('pushRemark').value = '';
+  openModal('modal-push');
+}
+
+function confirmPush() {
+  const a = activities.find(x=>x.id===currentPushActivityId);
+  if (!a) return;
+  
+  const btn = event.target;
+  btn.textContent = '推送中...';
+  btn.disabled = true;
+  
+  // Simulate push delay
+  setTimeout(() => {
+    // Create production copy
+    const prodActivity = JSON.parse(JSON.stringify(a));
+    prodActivity.id = Date.now();
+    prodActivity.name = a.name + '（正式服副本）';
+    prodActivity.status = '未上线';
+    
+    // Add to activities list (in real scenario, this would be sent to backend)
+    activities.unshift(prodActivity);
+    
+    btn.textContent = '✓ 推送成功';
+    btn.style.background = '#52c41a';
+    btn.style.borderColor = '#52c41a';
+    
+    setTimeout(() => {
+      closeModal(document.getElementById('modal-push'));
+      btn.textContent = '确认推送';
+      btn.style.background = '';
+      btn.style.borderColor = '';
+      btn.disabled = false;
+      
+      showConfirm('推送成功', `活动「${a.name}」已成功推送到正式服！<br><br>正式服活动ID：${prodActivity.id}<br>状态：未上线（待审核）<br><br>请通知运营同事在正式服进行审核上线。`, () => {
+        goList();
+      });
+    }, 800);
+  }, 1500);
+}
+
+// ==================== Confirm ====================
+function showConfirm(title, msg, cb) {
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmMsg').innerHTML = msg;
+  document.getElementById('confirmBtn').onclick = () => { closeModal(document.getElementById('modal-confirm')); cb(); };
+  openModal('modal-confirm');
+}
+
+// ==================== Modal ====================
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(el) { el.classList.remove('show'); }
+
+// ==================== Init ====================
+renderActivityList();
+</script>
+</body>
+</html>

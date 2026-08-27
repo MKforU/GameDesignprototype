@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>活动中心 - 手机竖屏原型</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #0a0a1a;
+    color: #fff;
+    font-size: 14px;
+    overflow: hidden;
+  }
+
+  /* ==================== 手机框 ==================== */
+  .phone-frame {
+    width: 375px;
+    height: 812px;
+    margin: 20px auto;
+    border-radius: 40px;
+    border: 6px solid #333;
+    overflow: hidden;
+    position: relative;
+    background: #0a0a1a;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .phone-notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 150px;
+    height: 30px;
+    background: #333;
+    border-radius: 0 0 20px 20px;
+    z-index: 100;
+  }
+  .phone-status-bar {
+    height: 44px;
+    background: rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    font-size: 12px;
+    color: #fff;
+    position: relative;
+    z-index: 50;
+  }
+
+  /* ==================== 主容器 ==================== */
+  .app-container {
+    height: calc(100% - 44px);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ==================== KV背景区域 ==================== */
+  .kv-section {
+    position: relative;
+    min-height: 320px;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .kv-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-size: cover;
+    background-position: center;
+    filter: brightness(0.6);
+  }
+  .kv-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(10,10,26,0.8) 85%, rgba(10,10,26,1) 100%);
+  }
+  .kv-content {
+    position: relative;
+    z-index: 10;
+    padding: 12px 16px 20px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 顶部导航 */
+  .top-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .back-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    border: none;
+    color: #fff;
+  }
+  .point-balance {
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 6px 14px;
+    display: flex;
+    gap: 14px;
+    font-size: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .point-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .point-item .icon { font-size: 14px; }
+  .point-item .label { color: rgba(255,255,255,0.6); }
+  .point-item .value { font-weight: 700; color: #ffd700; }
+
+  /* KV信息 */
+  .kv-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  .kv-title {
+    font-size: 26px;
+    font-weight: 800;
+    margin-bottom: 6px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    line-height: 1.2;
+  }
+  .kv-subtitle {
+    font-size: 13px;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: 10px;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  }
+  .kv-countdown {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,77,77,0.2);
+    border: 1px solid rgba(255,77,77,0.4);
+    border-radius: 16px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: #ff6b6b;
+    width: fit-content;
+    animation: countdownPulse 2s infinite;
+  }
+  .kv-points-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .kv-point-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0,0,0,0.35);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+    padding: 4px 12px 4px 8px;
+    font-size: 12px;
+  }
+  .kv-point-badge .icon { font-size: 14px; }
+  .kv-point-badge .label { color: rgba(255,255,255,0.5); }
+  .kv-point-badge .value { font-weight: 700; color: #ffd700; }
+  @keyframes countdownPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  /* ==================== Tab栏 ==================== */
+  .tab-bar {
+    display: flex;
+    background: rgba(20,20,40,0.95);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 20;
+  }
+  .tab-item {
+    flex: 1;
+    padding: 12px 0;
+    text-align: center;
+    font-size: 13px;
+    color: rgba(255,255,255,0.5);
+    cursor: pointer;
+    position: relative;
+    transition: color 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: none;
+    background: none;
+  }
+  .tab-item.active {
+    color: #ffd700;
+    font-weight: 600;
+  }
+  .tab-item.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 20%;
+    right: 20%;
+    height: 3px;
+    background: linear-gradient(90deg, #ffd700, #ffaa00);
+    border-radius: 2px;
+  }
+  .tab-item .red-dot {
+    width: 8px;
+    height: 8px;
+    background: #ff4d4f;
+    border-radius: 50%;
+    position: absolute;
+    top: 8px;
+    right: 20%;
+    display: none;
+  }
+  .tab-item .red-dot.show { display: block; animation: dotPulse 1.5s infinite; }
+  @keyframes dotPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+  }
+
+  /* ==================== 内容区 ==================== */
+  .content-area {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px;
+    background: #0a0a1a;
+    -webkit-overflow-scrolling: touch;
+  }
+  .content-area::-webkit-scrollbar { display: none; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ==================== 任务卡片 ==================== */
+  .task-card {
+    background: linear-gradient(135deg, rgba(30,30,60,0.9), rgba(20,20,50,0.9));
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 10px;
+    position: relative;
+    overflow: hidden;
+  }
+  .task-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(255,215,0,0.3), transparent);
+  }
+  .task-card.completed {
+    border-color: rgba(76,175,80,0.3);
+  }
+  .task-card.completed::before {
+    background: linear-gradient(90deg, transparent, rgba(76,175,80,0.5), transparent);
+  }
+  .task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+  }
+  .task-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .task-name .icon { font-size: 18px; }
+  .task-type-tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(255,215,0,0.15);
+    color: #ffd700;
+    border: 1px solid rgba(255,215,0,0.2);
+  }
+
+  /* 奖励预览 */
+  .reward-preview {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .reward-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255,165,0,0.1);
+    border: 1px solid rgba(255,165,0,0.2);
+    border-radius: 8px;
+    padding: 4px 8px;
+  }
+  .reward-item .reward-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #ff8c00, #ff6347);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+  }
+  .reward-item .reward-info {
+    font-size: 11px;
+  }
+  .reward-item .reward-name { color: rgba(255,255,255,0.7); }
+  .reward-item .reward-amount { color: #ffd700; font-weight: 600; }
+
+  /* 进度条 */
+  .progress-section {
+    margin-bottom: 10px;
+  }
+  .progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 4px;
+  }
+  .progress-bar {
+    height: 8px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+    position: relative;
+  }
+  .progress-fill.active {
+    background: linear-gradient(90deg, #ffd700, #ffaa00);
+    box-shadow: 0 0 8px rgba(255,215,0,0.4);
+  }
+  .progress-fill.done {
+    background: linear-gradient(90deg, #4caf50, #66bb6a);
+  }
+
+  /* 任务按钮 */
+  .task-action {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .btn-action {
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.3s;
+  }
+  .btn-action.primary {
+    background: linear-gradient(135deg, #ffd700, #ffaa00);
+    color: #1a1a2e;
+    box-shadow: 0 4px 12px rgba(255,215,0,0.3);
+  }
+  .btn-action.primary:active {
+    transform: scale(0.95);
+    box-shadow: 0 2px 6px rgba(255,215,0,0.2);
+  }
+  .btn-action.claim {
+    background: linear-gradient(135deg, #4caf50, #66bb6a);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(76,175,80,0.3);
+    animation: claimPulse 1.5s infinite;
+  }
+  @keyframes claimPulse {
+    0%, 100% { box-shadow: 0 4px 12px rgba(76,175,80,0.3); }
+    50% { box-shadow: 0 4px 20px rgba(76,175,80,0.6); }
+  }
+  .btn-action.done {
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.4);
+    cursor: default;
+  }
+
+  /* ==================== 商城网格 ==================== */
+  .shop-balance-card {
+    background: linear-gradient(135deg, #ffd700 0%, #ffaa00 100%);
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin-bottom: 14px;
+    box-shadow: 0 4px 16px rgba(255,170,0,0.3);
+    position: relative;
+    overflow: hidden;
+  }
+  .shop-balance-card::before {
+    content: '💰';
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 52px;
+    opacity: 0.18;
+  }
+  .balance-label {
+    font-size: 12px;
+    color: rgba(60,40,0,0.7);
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .balance-value {
+    font-size: 32px;
+    font-weight: 800;
+    color: #3d2900;
+    line-height: 1;
+    margin-bottom: 6px;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+  }
+  .balance-hint {
+    font-size: 11px;
+    color: rgba(60,40,0,0.5);
+  }
+  .shop-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .shop-card {
+    background: linear-gradient(135deg, rgba(30,30,60,0.9), rgba(20,20,50,0.9));
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .shop-card:active {
+    transform: scale(0.95);
+  }
+  .shop-card.sold-out {
+    opacity: 0.45;
+  }
+  .shop-card .item-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #ff8c00, #ff4500);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-bottom: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  .shop-card .item-icon::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.1) 50%, transparent 60%);
+    animation: iconShine 3s infinite;
+  }
+  @keyframes iconShine {
+    0% { transform: translateX(-100%) rotate(45deg); }
+    100% { transform: translateX(100%) rotate(45deg); }
+  }
+  .shop-card .item-name {
+    font-size: 12px;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+  }
+  .shop-card .item-cost {
+    font-size: 14px;
+    font-weight: 800;
+    color: #ffd700;
+    margin-bottom: 2px;
+  }
+  .shop-card .item-stock {
+    font-size: 10px;
+    color: rgba(255,255,255,0.4);
+  }
+  .shop-card .btn-buy {
+    margin-top: 6px;
+    width: 100%;
+    padding: 5px 0;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    text-align: center;
+  }
+  .shop-card .btn-buy.can-buy {
+    background: linear-gradient(135deg, #ffd700, #ffaa00);
+    color: #1a1a2e;
+  }
+  .shop-card .btn-buy.cant-buy {
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.4);
+    font-size: 10px;
+  }
+  }
+  .shop-card .btn-buy.can-buy .short-info { color: rgba(26,26,46,0.6); }
+
+  /* ==================== 里程碑 ==================== */
+  .milestone-dim-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .dim-tab {
+    flex: 1;
+    padding: 8px 0;
+    text-align: center;
+    border-radius: 10px;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.5);
+    transition: all 0.3s;
+  }
+  .dim-tab.active {
+    background: rgba(255,215,0,0.15);
+    border-color: rgba(255,215,0,0.3);
+    color: #ffd700;
+    font-weight: 600;
+  }
+
+  /* 当前进度卡 - 置顶，始终可见 */
+  .ms-current-card {
+    background: linear-gradient(135deg, rgba(255,215,0,0.1), rgba(255,170,0,0.05));
+    border: 1px solid rgba(255,215,0,0.2);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .ms-current-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .ms-current-points {
+    font-size: 13px;
+    color: rgba(255,255,255,0.6);
+  }
+  .ms-current-points .num {
+    font-size: 28px;
+    font-weight: 800;
+    color: #ffd700;
+    margin: 0 2px;
+  }
+  .ms-current-points .unit {
+    font-size: 13px;
+    color: rgba(255,255,255,0.4);
+  }
+
+  /* 下一档奖励预览 - 大卡片，始终可见 */
+  .ms-next-reward {
+    background: rgba(0,0,0,0.3);
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .ms-next-reward::before {
+    content: '下一档';
+    position: absolute;
+    top: 0;
+    left: 0;
+    background: rgba(255,215,0,0.3);
+    color: #ffd700;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 0 0 8px 0;
+    font-weight: 600;
+  }
+  .ms-next-reward.achieved::before {
+    content: '已达成';
+    background: rgba(76,175,80,0.3);
+    color: #66bb6a;
+  }
+  .ms-next-reward .reward-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #ff8c00, #ff4500);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    flex-shrink: 0;
+    margin-top: 16px;
+  }
+  .ms-next-reward .reward-info { flex: 1; margin-top: 16px; }
+  .ms-next-reward .reward-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.9);
+    margin-bottom: 2px;
+  }
+  .ms-next-reward .reward-amount {
+    font-size: 12px;
+    color: #ffd700;
+  }
+  .ms-next-reward .reward-diff {
+    text-align: right;
+    margin-top: 16px;
+  }
+  .ms-next-reward .diff-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+  }
+  .ms-next-reward .diff-value {
+    font-size: 16px;
+    font-weight: 700;
+    color: #ff6b6b;
+  }
+  .ms-next-reward.all-done {
+    border-color: rgba(76,175,80,0.3);
+    background: rgba(76,175,80,0.1);
+  }
+  .ms-next-reward.all-done .diff-value {
+    color: #66bb6a;
+  }
+  .ms-next-reward .claim-btn {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    padding: 6px 18px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #4caf50, #66bb6a);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(76,175,80,0.4);
+    animation: claimPulse 1.5s infinite;
+  }
+  .ms-next-reward .claim-btn:active {
+    transform: scale(0.95);
+  }
+
+  .milestone-progress {
+    background: rgba(30,30,60,0.9);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .ms-progress-track {
+    height: 10px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 5px;
+    position: relative;
+    margin-bottom: 8px;
+    overflow: visible;
+  }
+  .ms-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ffd700, #ffaa00);
+    border-radius: 5px;
+    transition: width 0.8s ease;
+    position: relative;
+  }
+  .ms-nodes {
+    display: flex;
+    justify-content: space-between;
+    position: relative;
+    margin-top: -18px;
+    padding: 0 4px;
+  }
+  .ms-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .ms-node-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    position: relative;
+    z-index: 2;
+  }
+  .ms-node-dot.locked {
+    background: rgba(255,255,255,0.1);
+    border: 2px solid rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.3);
+  }
+  .ms-node-dot.unlocked {
+    background: linear-gradient(135deg, #4caf50, #66bb6a);
+    border: 2px solid #66bb6a;
+    color: #fff;
+    box-shadow: 0 0 8px rgba(76,175,80,0.4);
+  }
+  .ms-node-dot.current {
+    background: linear-gradient(135deg, #ffd700, #ffaa00);
+    border: 2px solid #ffd700;
+    color: #1a1a2e;
+    box-shadow: 0 0 12px rgba(255,215,0,0.5);
+    animation: currentPulse 2s infinite;
+  }
+  @keyframes currentPulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(255,215,0,0.4); }
+    50% { box-shadow: 0 0 16px rgba(255,215,0,0.7); }
+  }
+  .ms-node-label {
+    font-size: 10px;
+    color: rgba(255,255,255,0.5);
+  }
+
+  /* 已完成里程碑 - 紧凑列表 */
+  .ms-done-section {
+    margin-top: 14px;
+  }
+  .ms-done-title {
+    font-size: 12px;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 8px;
+    padding-left: 4px;
+  }
+  .milestone-item {
+    background: linear-gradient(135deg, rgba(30,30,60,0.9), rgba(20,20,50,0.9));
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .milestone-item.locked {
+    opacity: 0.5;
+  }
+  .ms-item-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #ff8c00, #ff4500);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .ms-item-info { flex: 1; }
+  .ms-item-points {
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffd700;
+    margin-bottom: 2px;
+  }
+  .ms-item-reward-text {
+    font-size: 12px;
+    color: rgba(255,255,255,0.6);
+  }
+  .ms-item-status {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 10px;
+    white-space: nowrap;
+  }
+  .ms-item-status.done {
+    background: rgba(76,175,80,0.15);
+    color: #66bb6a;
+    border: 1px solid rgba(76,175,80,0.3);
+  }
+  .ms-item-status.locked {
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.3);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .ms-item-status.claimable {
+    background: rgba(255,215,0,0.15);
+    color: #ffd700;
+    border: 1px solid rgba(255,215,0,0.3);
+    animation: claimPulse 1.5s infinite;
+  }
+
+  /* ==================== 活动轮播指示器 ==================== */
+  .activity-dots {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+    z-index: 30;
+  }
+  .activity-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .activity-dot.active {
+    width: 18px;
+    border-radius: 3px;
+    background: #ffd700;
+  }
+
+  /* ==================== 领奖弹窗 ==================== */
+  .modal-mask {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+  }
+  .modal-mask.show {
+    display: flex;
+    animation: fadeIn 0.3s;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal-box {
+    background: linear-gradient(135deg, #1a1a3e, #0a0a2e);
+    border: 1px solid rgba(255,215,0,0.2);
+    border-radius: 20px;
+    padding: 30px 24px 20px;
+    text-align: center;
+    width: 280px;
+    animation: modalPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  @keyframes modalPop { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .modal-box .title {
+    font-size: 20px;
+    font-weight: 800;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #ffd700, #ffaa00);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .modal-box .reward-display {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .modal-box .reward-display .big-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #ff8c00, #ff4500);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    animation: rewardBounce 0.6s ease 0.3s both;
+  }
+  @keyframes rewardBounce {
+    0% { transform: scale(0) rotate(-10deg); }
+    60% { transform: scale(1.2) rotate(5deg); }
+    100% { transform: scale(1) rotate(0); }
+  }
+  .modal-box .btn-confirm {
+    padding: 10px 40px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #ffd700, #ffaa00);
+    color: #1a1a2e;
+    font-size: 15px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+  }
+
+  /* ==================== 积分飘字 ==================== */
+  .float-points {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2000;
+    pointer-events: none;
+  }
+  .float-point {
+    text-align: center;
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffd700;
+    text-shadow: 0 0 10px rgba(255,215,0,0.5);
+    animation: floatUp 1.5s ease-out forwards;
+  }
+  .float-point:nth-child(2) { animation-delay: 0.15s; color: #64b5f6; text-shadow: 0 0 10px rgba(100,181,246,0.5); }
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-60px); }
+  }
+
+  /* ==================== 空状态 ==================== */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: rgba(255,255,255,0.3);
+  }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-state .text { font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="phone-frame">
+  <div class="phone-notch"></div>
+  <div class="phone-status-bar">
+    <span>14:00</span>
+    <span>📶 🔋 100%</span>
+  </div>
+
+  <div class="app-container">
+    <!-- KV背景区域 -->
+    <div class="kv-section" id="kvSection">
+      <div class="kv-bg" id="kvBg"></div>
+      <div class="kv-overlay"></div>
+      <div class="kv-content">
+        <!-- 顶部导航 -->
+        <div class="top-nav">
+          <button class="back-btn">←</button>
+          <div class="kv-title" style="font-size:16px;margin:0;flex:1;text-align:center;">活动中心</div>
+          <button class="back-btn" onclick="showRules()" style="font-size:13px;width:auto;padding:0 12px;border-radius:16px;">📖 规则</button>
+        </div>
+
+        <!-- KV信息 -->
+        <div class="kv-info">
+          <div class="kv-title" id="kvTitle">七夕限定·星光舞台</div>
+          <div class="kv-subtitle" id="kvSubtitle">完成任务收集星光积分，兑换限定奖励！</div>
+          <div class="kv-points-row">
+            <div class="kv-point-badge">
+              <span class="icon">💰</span>
+              <span class="label">商城</span>
+              <span class="value" id="shopPoints">2,680</span>
+            </div>
+            <div class="kv-point-badge">
+              <span class="icon">⭐</span>
+              <span class="label">里程碑</span>
+              <span class="value" id="msPoints">1,200</span>
+            </div>
+          </div>
+          <div class="kv-countdown" id="kvCountdown">⏰ 活动剩余：2天 14小时 32分</div>
+        </div>
+      </div>
+
+      <!-- 活动指示器 -->
+      <div class="activity-dots" id="activityDots">
+        <div class="activity-dot active" onclick="switchActivity(0)"></div>
+        <div class="activity-dot" onclick="switchActivity(1)"></div>
+        <div class="activity-dot" onclick="switchActivity(2)"></div>
+      </div>
+    </div>
+
+    <!-- Tab栏 -->
+    <div class="tab-bar">
+      <button class="tab-item active" onclick="switchTab('tasks')">
+        📋 任务
+        <span class="red-dot show" id="dot-tasks"></span>
+      </button>
+      <button class="tab-item" onclick="switchTab('shop')">
+        🛒 商城
+        <span class="red-dot show" id="dot-shop"></span>
+      </button>
+      <button class="tab-item" onclick="switchTab('milestone')">
+        🏆 里程碑
+        <span class="red-dot show" id="dot-milestone"></span>
+      </button>
+    </div>
+
+    <!-- 内容区 -->
+    <div class="content-area">
+      <!-- 任务Tab -->
+      <div class="tab-panel active" id="panel-tasks"></div>
+
+      <!-- 商城Tab -->
+      <div class="tab-panel" id="panel-shop"></div>
+
+      <!-- 里程碑Tab -->
+      <div class="tab-panel" id="panel-milestone"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 领奖弹窗 -->
+<div class="modal-mask" id="claimModal">
+  <div class="modal-box">
+    <div class="title">🎉 恭喜获得！</div>
+    <div class="reward-display" id="claimRewardDisplay"></div>
+    <button class="btn-confirm" onclick="closeClaimModal()">确认收下</button>
+  </div>
+</div>
+
+<!-- 积分飘字容器 -->
+<div class="float-points" id="floatPoints"></div>
+
+<!-- 规则弹窗 -->
+<div class="modal-mask" id="rulesModal">
+  <div class="modal-box" style="width:300px;max-height:500px;overflow-y:auto;text-align:left;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="title" style="margin-bottom:0;">📖 活动规则</div>
+      <button onclick="closeRules()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <div id="rulesContent" style="font-size:13px;line-height:1.8;color:rgba(255,255,255,0.7);white-space:pre-wrap;"></div>
+  </div>
+</div>
+
+<script>
+// ==================== Mock数据 ====================
+const activities = [
+  {
+    id: 1001,
+    name: '七夕限定·星光舞台',
+    type: '限时活动',
+    subtitle: '完成任务收集星光积分，兑换限定奖励！',
+    start: '2026-08-25T10:00',
+    end: '2026-09-01T23:59',
+    kvGradient: 'linear-gradient(135deg, #1a0533 0%, #2d1b69 30%, #ff6b9d 70%, #ffd700 100%)',
+    kvIcon: '🌟',
+    rules: '1. 活动期间（8.25-9.1）完成任务可获得商城积分和里程碑积分\n2. 商城积分用于兑换商城商品，里程碑积分用于解锁里程碑奖励\n3. 任务每日/每周刷新，以任务配置为准\n4. 每个商品每人有兑换上限，达到上限后无法继续兑换\n5. 里程碑奖励需达到对应积分门槛后方可领取\n6. 白名单内的玩家才能看到并参与此活动',
+    shopPoints: 2680,
+    msPoints: 1200,
+    tasks: [
+      { id:1, name:'每日登录领星钻', icon:'📱', type:'登录', targetMode:'any', targetIds:[], target:1, progress:1, maxTimes:1, refresh:'每日', points:10, rewardMode:'all', rewardList:[{name:'星钻',id:1,amount:100},{name:'七夕称号',id:10023,amount:1}], status:'claimable' },
+      { id:2, name:'累计充值30元', icon:'💰', type:'充值', targetMode:'amount', targetIds:[], target:30, progress:0, maxTimes:1, refresh:'不刷新', points:500, rewardMode:'all', rewardList:[{name:'钻石',id:50012,amount:1},{name:'星钻',id:1,amount:6480}], status:'active' },
+      { id:3, name:'赠送礼物5次', icon:'🎁', type:'送礼', targetMode:'any', targetIds:[], target:5, progress:3, maxTimes:1, refresh:'每日', points:20, rewardMode:'random', rewardList:[{name:'玫瑰花',id:20001,amount:3},{name:'巧克力',id:20002,amount:2}], status:'active' },
+      { id:4, name:'完成3次副本', icon:'⚔️', type:'副本', targetMode:'any', targetIds:[], target:3, progress:3, maxTimes:1, refresh:'每日', points:50, rewardMode:'all', rewardList:[{name:'装备箱',id:30045,amount:2}], status:'completed' },
+      { id:5, name:'签到7天', icon:'📅', type:'登录', targetMode:'any', targetIds:[], target:7, progress:7, maxTimes:1, refresh:'不刷新', points:30, rewardMode:'all', rewardList:[{name:'限定头像框',id:40022,amount:1},{name:'星钻',id:1,amount:500}], status:'completed' },
+    ],
+    shop: [
+      { id:1, name:'限定头像框·星光', icon:'🖼️', cost:1200, limit:1, bought:0, stock:98, canBuy:true },
+      { id:2, name:'七夕限定礼包', icon:'🎁', cost:3000, limit:3, bought:1, stock:50, canBuy:false },
+      { id:3, name:'星钻×1000', icon:'💎', cost:500, limit:10, bought:3, stock:999, canBuy:true },
+      { id:4, name:'玫瑰花束', icon:'🌹', cost:200, limit:0, bought:0, stock:999, canBuy:true },
+    ],
+    milestones: [
+      { id:1, points:100, reward:{name:'星钻',icon:'💎',amount:100}, status:'claimed', dim:'personal' },
+      { id:2, points:500, reward:{name:'限定称号',icon:'🏅',amount:1}, status:'claimable', dim:'personal' },
+      { id:3, points:1000, reward:{name:'限定头像框',icon:'🖼️',amount:1}, status:'locked', diff:200, dim:'personal' },
+      { id:4, points:2000, reward:{name:'限定皮肤',icon:'👗',amount:1}, status:'locked', diff:1200, dim:'personal' },
+    ],
+    milestonesTeam: [
+      { id:11, points:5000, reward:{name:'战队宝箱',icon:'📦',amount:1}, status:'locked', diff:3800, dim:'team' },
+    ],
+    milestonesServer: [
+      { id:21, points:100000, reward:{name:'全服烟花',icon:'🎆',amount:1}, status:'locked', diff:88000, dim:'server' },
+    ]
+  },
+  {
+    id: 1002,
+    name: '每日登录送好礼',
+    type: '常规活动',
+    subtitle: '每日登录即可领取奖励，坚持签到更有惊喜！',
+    start: '2026-08-01T00:00',
+    end: '',
+    kvGradient: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 40%, #42a5f5 100%)',
+    kvIcon: '🎁',
+    rules: '1. 每日登录即可获得奖励，坚持签到更有惊喜\n2. 连续登录天数越多，奖励越丰厚\n3. 常规活动长期开放，随时可参与',
+    shopPoints: 1580,
+    msPoints: 600,
+    tasks: [
+      { id:6, name:'每日登录', icon:'📱', type:'登录', targetMode:'any', targetIds:[], target:1, progress:1, maxTimes:1, refresh:'每日', points:5, rewardMode:'all', rewardList:[{name:'星钻',id:1,amount:50}], status:'claimable' },
+      { id:7, name:'登录3天', icon:'📅', type:'登录', targetMode:'any', targetIds:[], target:3, progress:2, maxTimes:1, refresh:'不刷新', points:15, rewardMode:'all', rewardList:[{name:'体力药水',id:10001,amount:100}], status:'active' },
+      { id:8, name:'登录7天', icon:'📅', type:'登录', targetMode:'any', targetIds:[], target:7, progress:5, maxTimes:1, refresh:'不刷新', points:30, rewardMode:'all', rewardList:[{name:'七夕称号',id:10023,amount:3}], status:'active' },
+    ],
+    shop: [
+      { id:5, name:'体力药水×5', icon:'🧪', cost:100, limit:5, bought:2, stock:999, canBuy:true },
+      { id:6, name:'经验加速卡', icon:'⚡', cost:300, limit:3, bought:0, stock:50, canBuy:true },
+    ],
+    milestones: [
+      { id:5, points:100, reward:{name:'星钻',icon:'💎',amount:50}, status:'claimed', dim:'personal' },
+      { id:6, points:300, reward:{name:'体力药水',icon:'🧪',amount:5}, status:'claimable', dim:'personal' },
+    ],
+    milestonesTeam: [],
+    milestonesServer: []
+  },
+  {
+    id: 1003,
+    name: '新版本狂欢',
+    type: '限时活动',
+    subtitle: '新版本上线狂欢，海量任务等你来挑战！',
+    start: '2026-09-05T10:00',
+    end: '2026-09-19T23:59',
+    kvGradient: 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 40%, #66bb6a 70%, #ffd700 100%)',
+    kvIcon: '🎮',
+    rules: '1. 新版本上线狂欢活动（9.5-9.19）\n2. 完成新版本专属任务可获得限定奖励\n3. 限时活动，过期后任务和商店将关闭\n4. 部分奖励为新版本限定，错过将无法获得',
+    shopPoints: 800,
+    msPoints: 300,
+    tasks: [
+      { id:9, name:'体验新副本', icon:'⚔️', type:'副本', targetMode:'any', targetIds:[], target:1, progress:0, maxTimes:3, refresh:'每日', points:30, rewardMode:'all', rewardList:[{name:'装备箱',id:30045,amount:1}], status:'active' },
+      { id:10, name:'新版本充值返利', icon:'💰', type:'充值', targetMode:'amount', targetIds:[], target:100, progress:0, maxTimes:1, refresh:'不刷新', points:100, rewardMode:'all', rewardList:[{name:'钻石',id:50012,amount:1}], status:'active' },
+    ],
+    shop: [
+      { id:7, name:'新版本限定翅膀', icon:'🪽', cost:5000, limit:1, bought:0, stock:10, canBuy:false },
+    ],
+    milestones: [
+      { id:7, points:500, reward:{name:'限定翅膀',icon:'🪽',amount:1}, status:'locked', diff:200, dim:'personal' },
+    ],
+    milestonesTeam: [],
+    milestonesServer: []
+  }
+];
+
+let currentActivityIdx = 0;
+let currentTab = 'tasks';
+let currentMsDim = 'personal';
+
+// ==================== 切换活动 ====================
+function switchActivity(idx) {
+  currentActivityIdx = idx;
+  renderAll();
+}
+
+// ==================== 切换Tab ====================
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-item').forEach((t, i) => {
+    t.classList.toggle('active', ['tasks','shop','milestone'][i] === tab);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-'+tab).classList.add('active');
+  renderAll();
+}
+
+// ==================== 渲染全部 ====================
+function renderAll() {
+  const a = activities[currentActivityIdx];
+
+  // 更新指示器
+  document.querySelectorAll('.activity-dot').forEach((d, i) => {
+    d.classList.toggle('active', i === currentActivityIdx);
+  });
+
+  // KV背景
+  const kvBg = document.getElementById('kvBg');
+  kvBg.style.background = a.kvGradient;
+  kvBg.innerHTML = `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:120px;opacity:0.15;">${a.kvIcon}</div>`;
+
+  // KV信息
+  document.getElementById('kvTitle').textContent = a.name;
+  document.getElementById('kvSubtitle').textContent = a.subtitle;
+
+  // 积分
+  document.getElementById('shopPoints').textContent = a.shopPoints.toLocaleString();
+  document.getElementById('msPoints').textContent = a.msPoints.toLocaleString();
+
+  // 倒计时
+  if (a.end) {
+    const end = new Date(a.end);
+    const now = new Date('2026-08-25T14:00:00');
+    const diff = end - now;
+    const days = Math.floor(diff / (1000*60*60*24));
+    const hours = Math.floor((diff % (1000*60*60*24)) / (1000*60*60));
+    const mins = Math.floor((diff % (1000*60*60)) / (1000*60));
+    document.getElementById('kvCountdown').innerHTML = `⏰ 活动剩余：<span style="color:#ffd700;">${days}天 ${hours}小时 ${mins}分</span>`;
+  } else {
+    document.getElementById('kvCountdown').innerHTML = '🔄 常规活动·持续开放';
+  }
+
+  // 红点
+  const hasTaskReward = a.tasks.some(t => t.status === 'claimable');
+  const hasShopItem = a.shop.some(s => s.canBuy);
+  const hasMsReward = a.milestones.some(m => m.status === 'claimable');
+  document.getElementById('dot-tasks').classList.toggle('show', hasTaskReward);
+  document.getElementById('dot-shop').classList.toggle('show', hasShopItem);
+  document.getElementById('dot-milestone').classList.toggle('show', hasMsReward);
+
+  // 渲染内容
+  renderTasks(a);
+  renderShop(a);
+  renderMilestone(a);
+}
+
+// ==================== 渲染任务 ====================
+function getTargetDesc(t) {
+  if (t.targetMode === 'amount') return `累计充值 ${t.target} 元`;
+  if (t.targetMode === 'count') return `累计充值 ${t.target} 次`;
+  if (t.targetMode === 'pool' && t.targetIds && t.targetIds.length)
+    return `指定目标累计 ${t.target} 次`;
+  if (t.targetMode === 'or' && t.targetIds && t.targetIds.length)
+    return `指定目标任意一个达到 ${t.target} 次`;
+  if (t.targetMode === 'and' && t.targetIds && t.targetIds.length)
+    return `指定目标各达到 ${t.target} 次`;
+  const typeMap = { '登录':'登录','签到':'签到','送礼':'赠送礼物','通关':'通关','副本':'完成副本','消耗物品':'消耗物品','在线时间':'在线','完成UGC购买':'购买UGC','拥有指定道具':'拥有道具','自定义':'自定义行为' };
+  return `${typeMap[t.type]||t.type} ${t.target} 次`;
+}
+
+function renderTasks(a) {
+  const el = document.getElementById('panel-tasks');
+  if (!a.tasks.length) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div class="text">暂无任务</div></div>';
+    return;
+  }
+  el.innerHTML = a.tasks.map(t => {
+    const pct = t.maxTimes > 0 ? Math.min(t.progress / t.maxTimes, 1) : 0;
+    const isDone = t.status === 'completed';
+    const canClaim = t.status === 'claimable';
+
+    let btnHtml = '';
+    if (isDone) {
+      btnHtml = '<button class="btn-action done">✅ 已完成</button>';
+    } else if (canClaim) {
+      btnHtml = `<button class="btn-action claim" onclick="claimTask(${t.id})">🎁 领取奖励</button>`;
+    } else {
+      btnHtml = `<button class="btn-action primary" onclick="goTask(${t.id})">🔗 前往完成</button>`;
+    }
+
+    const rewards = t.rewardList.map(r => `
+      <div class="reward-item">
+        <div class="reward-icon">🎁</div>
+        <div class="reward-info">
+          <div class="reward-name">#${r.id}</div>
+          <div class="reward-amount">×${r.amount}</div>
+        </div>
+      </div>
+    `).join('');
+
+    const refreshTag = t.refresh !== '不刷新' ? `<span class="task-type-tag">${t.refresh}刷新</span>` : '';
+    const modeTag = t.rewardMode === 'random' ? '<span class="task-type-tag" style="background:rgba(100,181,246,0.15);color:#64b5f6;border-color:rgba(100,181,246,0.2);">随机</span>'
+      : t.rewardMode === 'choose' ? '<span class="task-type-tag" style="background:rgba(156,39,176,0.15);color:#ce93d8;border-color:rgba(156,39,176,0.2);">自选</span>' : '';
+
+    return `
+      <div class="task-card ${isDone?'completed':''}">
+        <div class="task-header">
+          <div class="task-name">
+            <span class="icon">${t.icon}</span>
+            ${t.name}
+            <span class="task-type-tag">${t.type}</span>
+            ${refreshTag} ${modeTag}
+          </div>
+        </div>
+        <div class="reward-preview">${rewards}</div>
+        <div class="progress-section">
+          <div class="progress-info">
+            <span>${t.progress}/${t.maxTimes} · ${getTargetDesc(t)}</span>
+            <span>${t.points>0?'+'+t.points+'积分':''}</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill ${isDone?'done':'active'}" style="width:${pct*100}%"></div>
+          </div>
+        </div>
+        <div class="task-action">${btnHtml}</div>
+      </div>`;
+  }).join('');
+}
+
+// ==================== 渲染商城 ====================
+function renderShop(a) {
+  const el = document.getElementById('panel-shop');
+
+  // 顶部积分余额卡片
+  let html = '<div class="shop-balance-card">' +
+    '<div class="balance-label">我的商城积分</div>' +
+    '<div class="balance-value">' + a.shopPoints.toLocaleString() + '</div>' +
+    '<div class="balance-hint">完成任务可获得商城积分</div>' +
+  '</div>';
+
+  if (!a.shop.length) {
+    el.innerHTML = html + '<div class="empty-state"><div class="icon">🛒</div><div class="text">暂无商品</div></div>';
+    return;
+  }
+  const cards = a.shop.map(s => {
+    const canBuy = a.shopPoints >= s.cost && s.canBuy;
+    const limitText = s.limit > 0 ? (s.bought + '/' + s.limit) : '';
+    const soldOut = s.limit > 0 && s.bought >= s.limit;
+
+    let btnHtml = '';
+    if (soldOut) {
+      btnHtml = '<button class="btn-buy cant-buy">已售罄</button>';
+    } else if (canBuy) {
+      btnHtml = '<button class="btn-buy can-buy" onclick="buyItem(' + s.id + ')">兑换</button>';
+    } else {
+      btnHtml = '<button class="btn-buy cant-buy">积分不足</button>';
+    }
+
+    return '<div class="shop-card ' + (soldOut ? 'sold-out' : '') + '" onclick="' + (canBuy ? 'buyItem(' + s.id + ')' : '') + '">' +
+      '<div class="item-icon">' + s.icon + '</div>' +
+      '<div class="item-name">' + s.name + '</div>' +
+      '<div class="item-cost">' + s.cost.toLocaleString() + '</div>' +
+      '<div class="item-stock">' + limitText + '</div>' +
+      btnHtml +
+    '</div>';
+  }).join('');
+  el.innerHTML = html + '<div class="shop-grid">' + cards + '</div>';
+}
+
+// ==================== 渲染里程碑 ====================
+function renderMilestone(a) {
+  const el = document.getElementById('panel-milestone');
+
+  let msList = [];
+  if (currentMsDim === 'personal') msList = a.milestones || [];
+  else if (currentMsDim === 'team') msList = a.milestonesTeam || [];
+  else msList = a.milestonesServer || [];
+
+  const dimLabel = { personal:'👤 个人', team:'👥 战队', server:'🌐 全服' };
+
+  let html = '<div class="milestone-dim-tabs">' +
+    ['personal','team','server'].map(d => {
+      const list = d==='personal'?a.milestones:d==='team'?a.milestonesTeam:a.milestonesServer;
+      return '<div class="dim-tab ' + (currentMsDim===d?'active':'') + '" onclick="switchMsDim(\'' + d + '\')">' + dimLabel[d] + (list.length?'('+list.length+')':'') + '</div>';
+    }).join('') +
+  '</div>';
+
+  if (!msList.length) {
+    html += '<div class="empty-state"><div class="icon">🏆</div><div class="text">该维度暂无里程碑</div></div>';
+  } else {
+    // 当前进度卡
+    html += '<div class="ms-current-card">' +
+      '<div class="ms-current-top">' +
+        '<div class="ms-current-points">' +
+          '<div style="color:rgba(255,255,255,0.5);font-size:12px;">' + dimLabel[currentMsDim] + '里程碑积分</div>' +
+          '<div><span class="num">' + a.msPoints.toLocaleString() + '</span><span class="unit"> 积分</span></div>' +
+        '</div>' +
+      '</div>';
+
+    // 奖励预览卡
+    const claimableMs = msList.find(m => m.status === 'claimable');
+    const nextMs = msList.find(m => a.msPoints < m.points);
+    const allDone = !nextMs && !claimableMs;
+
+    if (claimableMs) {
+      // 有可领取的 - 显示「已达成」卡片
+      html += '<div class="ms-next-reward achieved" style="border-color:rgba(76,175,80,0.3);background:rgba(76,175,80,0.08);">' +
+        '<div class="reward-icon" style="background:linear-gradient(135deg,#4caf50,#66bb6a);">' + claimableMs.reward.icon + '</div>' +
+        '<div class="reward-info">' +
+          '<div class="reward-name">已达成 · ' + claimableMs.points + '积分</div>' +
+          '<div class="reward-amount">' + claimableMs.reward.name + ' ×' + claimableMs.reward.amount + '</div>' +
+        '</div>' +
+        '<button class="claim-btn" onclick="claimMilestone(' + claimableMs.id + ')">🎁 领取</button>' +
+      '</div>';
+    } else if (nextMs) {
+      // 无可领取 - 显示「下一档」目标
+      const diff = nextMs.points - a.msPoints;
+      html += '<div class="ms-next-reward">' +
+        '<div class="reward-icon">' + nextMs.reward.icon + '</div>' +
+        '<div class="reward-info">' +
+          '<div class="reward-name">下一档 · ' + nextMs.points + '积分</div>' +
+          '<div class="reward-amount">' + nextMs.reward.name + ' ×' + nextMs.reward.amount + '</div>' +
+        '</div>' +
+        '<div class="reward-diff">' +
+          '<div class="diff-label">还差</div>' +
+          '<div class="diff-value">' + diff.toLocaleString() + '</div>' +
+        '</div>' +
+      '</div>';
+    } else {
+      html += '<div class="ms-next-reward all-done">' +
+        '<div class="reward-icon" style="background:linear-gradient(135deg,#4caf50,#66bb6a);">🎉</div>' +
+        '<div class="reward-info">' +
+          '<div class="reward-name">全部达成！</div>' +
+          '<div class="reward-amount">已解锁所有里程碑奖励</div>' +
+        '</div>' +
+        '<div class="reward-diff">' +
+          '<div class="diff-value">✅</div>' +
+        '</div>' +
+      '</div>';
+    }
+    html += '</div>';
+
+    // 进度条+节点
+    const maxPts = Math.max(...msList.map(m => m.points));
+    const fillPct = Math.min(a.msPoints / maxPts, 1);
+
+    const nodes = msList.map(m => {
+      let dotClass = 'locked';
+      let icon = '🔒';
+      if (a.msPoints >= m.points) {
+        if (m.status === 'claimed') { dotClass = 'unlocked'; icon = '✅'; }
+        else { dotClass = 'current'; icon = '🎁'; }
+      }
+      return '<div class="ms-node">' +
+        '<div class="ms-node-dot ' + dotClass + '">' + icon + '</div>' +
+        '<div class="ms-node-label">' + m.points + '</div>' +
+      '</div>';
+    }).join('');
+
+    html += '<div class="milestone-progress" style="padding:16px 16px 24px;">' +
+      '<div class="ms-progress-track">' +
+        '<div class="ms-progress-fill" style="width:' + (fillPct*100) + '%"></div>' +
+      '</div>' +
+      '<div class="ms-nodes">' + nodes + '</div>' +
+    '</div>';
+
+    // 已完成的里程碑列表
+    const claimed = msList.filter(m => m.status === 'claimed');
+    const locked = msList.filter(m => m.status === 'locked');
+
+    // 已完成的
+    if (claimed.length > 0) {
+      html += '<div class="ms-done-section"><div class="ms-done-title">✅ 已完成</div>';
+      claimed.forEach(m => {
+        html += '<div class="milestone-item">' +
+          '<div class="ms-item-icon">' + m.reward.icon + '</div>' +
+          '<div class="ms-item-info">' +
+            '<div class="ms-item-points">' + m.points.toLocaleString() + ' 积分</div>' +
+            '<div class="ms-item-reward-text">' + m.reward.name + ' ×' + m.reward.amount + '</div>' +
+          '</div>' +
+          '<div class="ms-item-status done">已领取</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+
+    // 未达成的
+    if (locked.length > 0) {
+      html += '<div class="ms-done-section"><div class="ms-done-title">🔒 未达成</div>';
+      locked.forEach(m => {
+        const diff = m.points - a.msPoints;
+        html += '<div class="milestone-item locked">' +
+          '<div class="ms-item-icon">' + m.reward.icon + '</div>' +
+          '<div class="ms-item-info">' +
+            '<div class="ms-item-points">' + m.points.toLocaleString() + ' 积分</div>' +
+            '<div class="ms-item-reward-text">' + m.reward.name + ' ×' + m.reward.amount + '</div>' +
+          '</div>' +
+          '<div style="font-size:11px;color:#ff6b6b;">差' + diff.toLocaleString() + '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+  }
+
+  el.innerHTML = html;
+}
+
+function switchMsDim(dim) {
+  currentMsDim = dim;
+  renderMilestone(activities[currentActivityIdx]);
+}
+
+// ==================== 交互：领取任务奖励 ====================
+function claimTask(taskId) {
+  const a = activities[currentActivityIdx];
+  const t = a.tasks.find(x => x.id === taskId);
+  if (!t || t.status !== 'claimable') return;
+
+  // 扣积分飘字
+  showFloatPoints(t.points);
+
+  // 更新状态
+  t.status = 'completed';
+  a.shopPoints += t.points;
+  a.msPoints += t.points;
+
+  // 弹窗
+  showClaimModal(t.rewardList.map(r => ({ icon:'🎁', name:r.name, amount:r.amount })));
+}
+
+// ==================== 交互：购买商品 ====================
+function buyItem(itemId) {
+  const a = activities[currentActivityIdx];
+  const s = a.shop.find(x => x.id === itemId);
+  if (!s || a.shopPoints < s.cost || !s.canBuy) return;
+
+  a.shopPoints -= s.cost;
+  s.bought++;
+  if (s.limit > 0 && s.bought >= s.limit) s.canBuy = false;
+
+  showFloatPoints(-s.cost);
+  showClaimModal([{ icon:s.icon, name:s.name, amount:1 }]);
+}
+
+// ==================== 交互：领取里程碑 ====================
+function claimMilestone(msId) {
+  const a = activities[currentActivityIdx];
+  const m = a.milestones.find(x => x.id === msId);
+  if (!m || m.status !== 'claimable') return;
+
+  m.status = 'claimed';
+  showClaimModal([{ icon:m.reward.icon, name:m.reward.name, amount:m.reward.amount }]);
+}
+
+// ==================== 交互：前往任务 ====================
+function goTask(taskId) {
+  // 模拟跳转到玩法
+  showFloatPoints(0, '🔄 跳转到对应玩法...');
+}
+
+// ==================== 领奖弹窗 ====================
+function showClaimModal(rewards) {
+  const display = document.getElementById('claimRewardDisplay');
+  display.innerHTML = rewards.map(r => `
+    <div class="big-icon">${r.icon}</div>
+  `).join('');
+  document.getElementById('claimModal').classList.add('show');
+}
+
+function closeClaimModal() {
+  document.getElementById('claimModal').classList.remove('show');
+  renderAll();
+}
+
+// ==================== 积分飘字 ====================
+function showFloatPoints(pts, customText) {
+  const container = document.getElementById('floatPoints');
+  container.innerHTML = '';
+  if (customText) {
+    container.innerHTML = `<div class="float-point" style="color:#fff;">${customText}</div>`;
+  } else {
+    const sign = pts >= 0 ? '+' : '';
+    container.innerHTML = `<div class="float-point">${sign}${pts} 商城积分</div><div class="float-point">${sign}${pts} 里程碑积分</div>`;
+  }
+  setTimeout(() => { container.innerHTML = ''; }, 1500);
+}
+
+// ==================== 规则弹窗 ====================
+function showRules() {
+  const a = activities[currentActivityIdx];
+  document.getElementById('rulesContent').textContent = a.rules || '暂无活动规则';
+  document.getElementById('rulesModal').classList.add('show');
+}
+function closeRules() {
+  document.getElementById('rulesModal').classList.remove('show');
+}
+
+// ==================== 初始化 ====================
+renderAll();
+</script>
+</body>
+</html>
