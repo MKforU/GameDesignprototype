@@ -395,9 +395,11 @@
           <select class="form-select" style="width:180px;" id="statsActivityFilter" onchange="renderStats()">
             <option value="">全部活动</option>
           </select>
-          <select class="form-select" style="width:130px;" id="statsRange" onchange="renderStats()">
-            <option value="today">今日</option><option value="7d">近7天</option><option value="30d">近30天</option><option value="all">全部</option>
-          </select>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <input class="form-input" type="date" id="statsDateStart" style="width:150px;" onchange="renderStats()">
+            <span style="color:#8c8c8c;">至</span>
+            <input class="form-input" type="date" id="statsDateEnd" style="width:150px;" onchange="renderStats()">
+          </div>
           <div style="flex:1"></div>
           <button class="btn btn-sm" onclick="exportStats()">📥 导出报表</button>
         </div>
@@ -410,13 +412,10 @@
           <div class="card"><div class="card-header"><h3>📋 任务完成排行</h3></div><div class="card-body"><ul class="rank-list" id="rankTask"></ul></div></div>
           <div class="card"><div class="card-header"><h3>🛍️ 商品兑换排行</h3></div><div class="card-body"><ul class="rank-list" id="rankShop"></ul></div></div>
         </div>
-        <div class="card" style="margin-top:16px;"><div class="card-header"><h3>📋 任务完成明细</h3></div><div class="card-body" style="padding:0;"><div class="table-wrapper"><table><thead><tr><th>任务名称</th><th>所属活动</th><th>完成次数</th><th>完成率</th><th>平均耗时</th></tr></thead><tbody id="taskDetailBody"></tbody></table></div></div></div>
+        <div class="card" style="margin-top:16px;"><div class="card-header"><h3>📋 任务完成明细</h3></div><div class="card-body" style="padding:0;"><div class="table-wrapper"><table><thead><tr><th>任务名称</th><th>所属活动</th><th>完成次数</th><th>完成率</th></tr></thead><tbody id="taskDetailBody"></tbody></table></div></div></div>
         <div class="card" style="margin-top:16px;"><div class="card-header"><h3>🏆 里程碑解锁概览</h3></div><div class="card-body" id="milestoneStats"></div></div>
         <div class="card" style="margin-top:16px;"><div class="card-header"><h3>📊 活动数据明细</h3></div><div class="card-body" style="padding:0;"><div class="table-wrapper"><table><thead><tr><th>活动名称</th><th>状态</th><th>参与人次</th><th>任务完成</th><th>完成率</th><th>积分发放</th><th>人均积分</th><th>积分兑换</th><th>兑换率</th><th>积分留存</th><th>奖励领取率</th><th>充值总额</th><th>里程碑解锁</th><th>解锁率</th></tr></thead><tbody id="statsDetailBody"></tbody></table></div></div></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
-          <div class="card"><div class="card-header"><h3>📦 商城库存消耗</h3></div><div class="card-body" id="shopStockStats"></div></div>
-          <div class="card"><div class="card-header"><h3>⏰ 活跃时段分析</h3></div><div class="card-body" id="peakHourStats"></div></div>
-        </div>
+        <div class="card" style="margin-top:16px;"><div class="card-header"><h3>📦 商城库存消耗</h3></div><div class="card-body" id="shopStockStats"></div></div>
       </div>
 
     </div>
@@ -882,7 +881,6 @@ const mockStats = {
     msPersonal: 2800, msTeam: 1200, msServer: 800,
     revenue: 156800, rechargePlayers: 1823,
     claimedRewards: 19750, totalRewardSlots: 24680,
-    peakHour: 20,
     taskNames: ['每日登录领星钻','累计充值送豪礼','赠送礼物传心意','通关困难副本','连续签到7天'],
     taskComps: [12000,890,3400,1200,5600],
     taskAvgMin: [0.5, 0, 12, 25, 1],
@@ -899,7 +897,6 @@ const mockStats = {
     msPersonal: 5200, msTeam: 2100, msServer: 1500,
     revenue: 0, rechargePlayers: 0,
     claimedRewards: 35200, totalRewardSlots: 38500,
-    peakHour: 8,
     taskNames: ['每日登录','累计签到3天','累计登录7天'],
     taskComps: [28000,8500,2000],
     taskAvgMin: [0.3, 0.5, 0.5],
@@ -916,10 +913,8 @@ const mockStats = {
     msPersonal: 0, msTeam: 0, msServer: 0,
     revenue: 0, rechargePlayers: 0,
     claimedRewards: 0, totalRewardSlots: 0,
-    peakHour: 0,
     taskNames: ['登录领新版本礼包','通关新副本'],
     taskComps: [0,0],
-    taskAvgMin: [0,0],
     taskTargets: [1,3],
     shopItems: ['新版本纪念品'],
     shopExchanges: [0],
@@ -935,8 +930,16 @@ const dailyTrend = [
 
 function renderStats() {
   const filterId = document.getElementById('statsActivityFilter').value;
-  const range = document.getElementById('statsRange').value;
+  const dateStart = document.getElementById('statsDateStart').value;
+  const dateEnd = document.getElementById('statsDateEnd').value;
   const acts = filterId ? activities.filter(a => a.id==filterId) : activities;
+
+  // Filter trend data by date range
+  const filteredTrend = dailyTrend.filter(d => {
+    if (dateStart && d.d < dateStart) return false;
+    if (dateEnd && d.d > dateEnd) return false;
+    return true;
+  });
 
   // Aggregate
   let totalP=0, totalC=0, totalSpt=0, totalMpt=0, totalEx=0, totalMun=0;
@@ -971,18 +974,18 @@ function renderStats() {
   `;
 
   // Trend charts
-  const maxP = Math.max(...dailyTrend.map(d=>d.p));
-  const maxPt = Math.max(...dailyTrend.map(d=>d.pt));
-  document.getElementById('chartParticipation').innerHTML = dailyTrend.map(d => `
+  const maxP = Math.max(...filteredTrend.map(d=>d.p));
+  const maxPt = Math.max(...filteredTrend.map(d=>d.pt));
+  document.getElementById('chartParticipation').innerHTML = filteredTrend.map(d => `
     <div class="chart-col"><div class="chart-val">${(d.p/1000).toFixed(1)}k</div><div class="chart-bar blue" style="height:${d.p/maxP*100}%"></div><div class="chart-label">${d.d.slice(5)}</div></div>
   `).join('');
-  document.getElementById('chartPoints').innerHTML = dailyTrend.map(d => `
+  document.getElementById('chartPoints').innerHTML = filteredTrend.map(d => `
     <div class="chart-col"><div class="chart-val">${(d.pt/10000).toFixed(1)}万</div><div class="chart-bar orange" style="height:${d.pt/maxPt*100}%"></div><div class="chart-label">${d.d.slice(5)}</div></div>
   `).join('');
 
   // Task completion rank
   let allTasks = [];
-  acts.forEach(a => { const s = mockStats[a.id]; if(s) s.taskNames.forEach((n,i) => allTasks.push({name:n,comps:s.taskComps[i],act:a.name,participants:s.participants,avgMin:s.taskAvgMin?s.taskAvgMin[i]:0})); });
+  acts.forEach(a => { const s = mockStats[a.id]; if(s) s.taskNames.forEach((n,i) => allTasks.push({name:n,comps:s.taskComps[i],act:a.name,participants:s.participants})); });
   allTasks.sort((a,b)=>b.comps-a.comps);
   document.getElementById('rankTask').innerHTML = allTasks.slice(0,5).map((t,i) => `
     <li class="rank-item"><div class="rank-num ${i<3?'r'+(i+1):'rn'}">${i+1}</div><div class="rank-info"><div class="rank-name">${t.name}</div><div class="rank-sub">${t.act}</div></div><div class="rank-val">${t.comps.toLocaleString()} 次</div></li>
@@ -991,9 +994,8 @@ function renderStats() {
   // Task detail table
   document.getElementById('taskDetailBody').innerHTML = allTasks.map(t => {
     const rate = t.participants > 0 ? (t.comps/t.participants*100).toFixed(1) : '0.0';
-    const avgTime = t.avgMin > 0 ? t.avgMin + '分钟' : '-';
-    return `<tr><td>${t.name}</td><td>${t.act}</td><td>${t.comps.toLocaleString()}</td><td>${rate}%</td><td>${avgTime}</td></tr>`;
-  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#bfbfbf;">暂无数据</td></tr>';
+    return `<tr><td>${t.name}</td><td>${t.act}</td><td>${t.comps.toLocaleString()}</td><td>${rate}%</td></tr>`;
+  }).join('') || '<tr><td colspan="4" style="text-align:center;color:#bfbfbf;">暂无数据</td></tr>';
 
   // Shop exchange rank
   let allShop = [];
@@ -1065,20 +1067,6 @@ function renderStats() {
     stockHtml += '</div>';
   });
   document.getElementById('shopStockStats').innerHTML = stockHtml || '<div style="text-align:center;color:#bfbfbf;padding:20px;">暂无数据</div>';
-
-  // Peak hour stats
-  let peakHtml = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">';
-  acts.forEach(a => {
-    const s = mockStats[a.id];
-    if (!s || !s.peakHour) return;
-    peakHtml += `<div style="text-align:center;padding:16px;background:#fafafa;border-radius:8px;">
-      <div style="font-weight:600;color:#595959;margin-bottom:8px;">${a.name}</div>
-      <div style="font-size:28px;font-weight:700;color:#1890ff;">${s.peakHour}:00</div>
-      <div style="font-size:12px;color:#8c8c8c;margin-top:4px;">峰值活跃时段</div>
-    </div>`;
-  });
-  peakHtml += '</div>';
-  document.getElementById('peakHourStats').innerHTML = peakHtml || '<div style="text-align:center;color:#bfbfbf;padding:20px;">暂无数据</div>';
 }
 
 function exportStats() {
