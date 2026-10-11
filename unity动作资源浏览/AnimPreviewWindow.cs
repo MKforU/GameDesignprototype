@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -14,11 +15,20 @@ public class AnimPreviewWindow : EditorWindow
     const string kGirlPath = "Assets/<你的工程>/Prefab/girl.prefab";
     const float kRowHeight = 20f;
 
+    // 10 个分类（下标0 起）；分类规则见 Classify()，中文名来自 t_animation_card.txt
+    static readonly string[] kCategories =
+    {
+        "舞蹈", "双人互动", "待机基础", "家具场景", "骑乘",
+        "换装展示", "表情情绪", "比赛结算", "乐器演出", "其他玩法"
+    };
+
     sealed class AnimEntry
     {
         public string Name;
         public string MalePath;
         public string FemalePath;
+        public string Category;
+        public string CnName;
     }
 
     sealed class ModelSlot
@@ -30,6 +40,10 @@ public class AnimPreviewWindow : EditorWindow
         public AnimationClip DefaultClip;
         public string StateName;
         public float Time;
+        // 曲线绑定诊断：TotalCurves=clip 曲线总数，BoundCurves=能在当前骨架上解析到路径的数量。
+        // Unity 对找不到路径的曲线是静默丢弃的，这里显式数出来，避免误判成预览器不播放。
+        public int TotalCurves;
+        public int BoundCurves;
 
         public float Length => Clip != null ? Clip.length : 0f;
     }
@@ -43,7 +57,9 @@ public class AnimPreviewWindow : EditorWindow
     [SerializeField] bool m_Playing;
     [SerializeField] string m_Search = "";
     [SerializeField] int m_GenderFilter;
+    [SerializeField] int m_CatFilter; // 0=全部，1..10 = kCategories[i-1]
     [SerializeField] string m_SelectedName;
+    string[] m_CatLabels;
     [SerializeField] float m_Yaw = 180f;
     [SerializeField] float m_Pitch = -5f;
     [SerializeField] float m_Dist = 3f;
@@ -54,6 +70,8 @@ public class AnimPreviewWindow : EditorWindow
     ModelSlot m_P2 = new ModelSlot();
     readonly List<AnimEntry> m_All = new List<AnimEntry>();
     readonly List<AnimEntry> m_Filtered = new List<AnimEntry>();
+    // 动作卡中文名：f_animation → f_name（来自 Assets/<你的工程>/Config/Tbl/t_animation_card.txt）
+    readonly Dictionary<string, string> m_CnNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     AnimEntry m_Selected;
     Vector2 m_ListScroll;
     double m_LastTick;
@@ -62,6 +80,8 @@ public class AnimPreviewWindow : EditorWindow
     GUIStyle m_NameStyle;
     GUIStyle m_YesStyle;
     GUIStyle m_NoStyle;
+    GUIStyle m_StatusStyle;
+    GUIStyle m_WarnStyle;
 
     [MenuItem("Tools/动作预览器")]
     static void Open()
@@ -132,6 +152,13 @@ public class AnimPreviewWindow : EditorWindow
         ScanFolder(kFemaleFolder, false, byName);
         m_All.AddRange(byName.Values);
         m_All.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+        LoadCnNames();
+        foreach (AnimEntry e in m_All)
+        {
+            e.Category = Classify(e.Name);
+            e.CnName = LookupCn(e.Name);
+        }
+
         RebuildFilter();
     }
 
@@ -143,6 +170,7 @@ public class AnimPreviewWindow : EditorWindow
         foreach (string file in Directory.GetFiles(full, "*.anim", SearchOption.AllDirectories))
         {
             string name = Path.GetFileNameWithoutExtension(file);
+            if (IsExcludedAnim(name)) continue;
             if (!byName.TryGetValue(name, out AnimEntry entry))
             {
                 entry = new AnimEntry { Name = name };
@@ -172,7 +200,10 @@ public class AnimPreviewWindow : EditorWindow
         {
             if (m_GenderFilter == 1 && e.MalePath == null) continue;
             if (m_GenderFilter == 2 && e.FemalePath == null) continue;
-            if (query.Length > 0 && e.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0) continue;
+            if (m_CatFilter > 0 && e.Category != kCategories[m_CatFilter - 1]) continue;
+            if (query.Length > 0 &&
+                e.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0 &&
+                (e.CnName == null || e.CnName.IndexOf(query, StringComparison.Ordinal) < 0)) continue;
             m_Filtered.Add(e);
             if (e.MalePath != null) m_MaleCount++;
             if (e.FemalePath != null) m_FemaleCount++;
@@ -180,6 +211,128 @@ public class AnimPreviewWindow : EditorWindow
     }
 
     #endregion
+
+    #region 分类与中文名
+
+    // 相机动画、创建角色用的换性别过渡、备份文件不参与预览
+    static bool IsExcludedAnim(string name)
+    {
+        if (name.StartsWith("Cam_", StringComparison.OrdinalIgnoreCase)) return true;
+        if (name.EndsWith("_bak", StringComparison.OrdinalIgnoreCase)) return true;
+        return string.Equals(name, "female_male", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(name, "male_female", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // 按 kCategories 顺序先命中先得：前缀 → 关键词 → 兜底"其他玩法"
+    static string Classify(string name)
+    {
+        // dzk=舞蹈卡；dj=蹦迪/DJ舞曲（dj_bd_*、dj_bengdi）；dance=getin_dance* 进入舞蹈
+        if (StartsWithAny(name, "dzk_", "dj_") || ContainsAny(name, "wudao", "tiaowu", "disco", "jiangshi", "dance"))
+            return kCategories[0]; // 舞蹈
+        if (StartsWithAny(name, "sr_", "2v2_", "3v3_", "qinglv_", "ql_") ||
+            ContainsAny(name, "jiewen", "sajiao", "zhendatui"))
+            return kCategories[1]; // 双人互动
+        if (StartsWithAny(name, "in_", "daiji", "tsdaiji_", "ttx_", "spy_"))
+            return kCategories[2]; // 待机基础
+        if (StartsWithAny(name, "jiaju_", "a_", "zhangpeng_", "qiuqian_", "zuoxia_", "zuodi_"))
+            return kCategories[3]; // 家具场景
+        if (StartsWithAny(name, "ride_"))
+            return kCategories[4]; // 骑乘
+        if (StartsWithAny(name, "sc_", "admission_", "kaichang_", "xuanjue_", "createrole_",
+                "create_role", "tujian_", "ugc_", "putongzhanshi_"))
+            return kCategories[5]; // 换装展示
+        if (StartsWithAny(name, "expression_", "bq_"))
+            return kCategories[6]; // 表情情绪
+        // rank 同时覆盖 rank_ 与 rank1_*；guanjun 覆盖裸名与 guanjun_ouxiang_*
+        if (StartsWithAny(name, "rank", "guanjun", "sd_", "shengli_", "phb_"))
+            return kCategories[7]; // 比赛结算
+        if (StartsWithAny(name, "drums_", "guitar_", "microphone_", "keyboard_", "ktv_", "xm_"))
+            return kCategories[8]; // 乐器演出
+        return kCategories[9]; // 其他玩法
+    }
+
+    static bool StartsWithAny(string s, params string[] prefixes)
+    {
+        foreach (string p in prefixes)
+            if (s.StartsWith(p, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
+    static bool ContainsAny(string s, params string[] keys)
+    {
+        foreach (string k in keys)
+            if (s.IndexOf(k, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+        return false;
+    }
+
+    // 读取 t_animation_card.txt 的 f_animation → f_name（中文名），缺失时静默降级
+    void LoadCnNames()
+    {
+        m_CnNames.Clear();
+        string path = Path.Combine(Application.dataPath, "<你的工程>/Config/Tbl/t_animation_card.txt");
+        if (!File.Exists(path)) return;
+        try
+        {
+            foreach (string line in File.ReadAllLines(path, Encoding.UTF8))
+            {
+                if (line.Length == 0 || line[0] == '/') continue;
+                string[] cols = line.Split('\t');
+                if (cols.Length < 3 || cols[0] == "f_id") continue;
+                string anim = cols[2].Trim();
+                string cn = cols[1].Trim();
+                if (anim.Length == 0 || cn.Length == 0) continue;
+                if (!m_CnNames.ContainsKey(anim)) m_CnNames.Add(anim, cn);
+            }
+        }
+        catch (Exception)
+        {
+            // 配置缺失/读取失败时不阻断扫描
+        }
+    }
+
+    // 文件名常带 _01/_02 序号后缀，逐段剥掉数字后缀再查
+    string LookupCn(string fileName)
+    {
+        if (m_CnNames.TryGetValue(fileName, out string cn)) return cn;
+        string baseName = fileName;
+        for (int i = 0; i < 2; i++)
+        {
+            int us = baseName.LastIndexOf('_');
+            if (us <= 0) break;
+            string tail = baseName.Substring(us + 1);
+            if (tail.Length == 0 || !IsDigits(tail)) break;
+            baseName = baseName.Substring(0, us);
+            if (m_CnNames.TryGetValue(baseName, out cn)) return cn;
+        }
+
+        return null;
+    }
+
+    static bool IsDigits(string s)
+    {
+        foreach (char c in s)
+            if (c < '0' || c > '9') return false;
+        return true;
+    }
+
+    #endregion
+
+    void SetCatFilter(int idx)
+    {
+        if (m_CatFilter == idx) return;
+        m_CatFilter = idx;
+        m_ListScroll = Vector2.zero;
+        RebuildFilter();
+        Repaint();
+    }
+
+    void EnsureCatLabels()
+    {
+        if (m_CatLabels != null) return;
+        m_CatLabels = new string[kCategories.Length + 1];
+        m_CatLabels[0] = "全部";
+        Array.Copy(kCategories, 0, m_CatLabels, 1, kCategories.Length);
+    }
 
     #region 模型
 
@@ -314,6 +467,8 @@ public class AnimPreviewWindow : EditorWindow
         slot.Clip = null;
         slot.DefaultClip = null;
         slot.StateName = null;
+        slot.TotalCurves = 0;
+        slot.BoundCurves = 0;
     }
 
     void ApplyVisibility()
@@ -441,7 +596,48 @@ public class AnimPreviewWindow : EditorWindow
 
         slot.Clip = clip;
         slot.StateName = stateName;
+        ComputeBindingStats(slot, clip);
         foreach (Animation anim in slot.Anims) anim.Sample();
+    }
+
+    // 统计 clip 的曲线路径里有多少条能在当前骨架上解析到目标。
+    // 路径解析规则与 legacy Animation 一致：相对 Animation 宿主的 Transform.Find。
+    // 同一路径可能带多条属性曲线（旋转 x/y/z/w 等），按路径去重计数更直观。
+    void ComputeBindingStats(ModelSlot slot, AnimationClip clip)
+    {
+        slot.TotalCurves = 0;
+        slot.BoundCurves = 0;
+        if (clip == null || slot.Anims.Count == 0) return;
+
+        HashSet<string> paths = new HashSet<string>();
+        foreach (EditorCurveBinding b in AnimationUtility.GetCurveBindings(clip))
+            paths.Add(b.path);
+        foreach (EditorCurveBinding b in AnimationUtility.GetObjectReferenceCurveBindings(clip))
+            paths.Add(b.path);
+
+        int total = 0;
+        int bound = 0;
+        foreach (string p in paths)
+        {
+            total++;
+            if (PathResolves(slot, p)) bound++;
+        }
+
+        slot.TotalCurves = total;
+        slot.BoundCurves = bound;
+    }
+
+    // 任一 Animation 宿主能找到该路径即算绑定（身体/服装两套骨架结构相同）
+    static bool PathResolves(ModelSlot slot, string path)
+    {
+        if (string.IsNullOrEmpty(path)) return true; // 曲线打在宿主自身上
+        foreach (Animation a in slot.Anims)
+        {
+            if (a == null) continue;
+            if (a.transform.Find(path) != null) return true;
+        }
+
+        return false;
     }
 
     void RestoreDefault(ModelSlot slot)
@@ -449,6 +645,8 @@ public class AnimPreviewWindow : EditorWindow
         ClearAddedStates(slot);
         slot.Clip = null;
         slot.StateName = null;
+        slot.TotalCurves = 0;
+        slot.BoundCurves = 0;
         if (slot.Anims.Count == 0) return;
 
         // 所有骨架统一播放模型自带的默认待机，保证身体与服装两套骨架同步
@@ -639,6 +837,11 @@ public class AnimPreviewWindow : EditorWindow
         {
             alignment = TextAnchor.MiddleCenter
         };
+        m_StatusStyle = new GUIStyle(EditorStyles.miniLabel) { richText = true };
+        m_WarnStyle = new GUIStyle(EditorStyles.whiteMiniLabel)
+        {
+            normal = { textColor = new Color(1f, 0.42f, 0.42f) }
+        };
     }
 
     void DrawToolbar()
@@ -675,6 +878,22 @@ public class AnimPreviewWindow : EditorWindow
             m_Speed = Mathf.Round(speed * 100f) / 100f;
         GUILayout.Label(m_Speed.ToString("0.00") + "x", EditorStyles.miniLabel, GUILayout.Width(34));
 
+        GUILayout.Space(10);
+        string catLabel = m_CatFilter == 0 ? "分类·全部" : "分类·" + kCategories[m_CatFilter - 1];
+        if (GUILayout.Button(catLabel, EditorStyles.toolbarDropDown, GUILayout.Width(110)))
+        {
+            GenericMenu menu = new GenericMenu();
+            menu.AddItem(new GUIContent("全部"), m_CatFilter == 0, () => SetCatFilter(0));
+            for (int i = 0; i < kCategories.Length; i++)
+            {
+                int idx = i + 1;
+                string cat = kCategories[i];
+                menu.AddItem(new GUIContent(cat), m_CatFilter == idx, () => SetCatFilter(idx));
+            }
+
+            menu.DropDown(GUILayoutUtility.GetLastRect());
+        }
+
         GUILayout.FlexibleSpace();
         if (GUILayout.Button("重置视角", EditorStyles.toolbarButton, GUILayout.Width(64)))
         {
@@ -709,13 +928,36 @@ public class AnimPreviewWindow : EditorWindow
 
     void DrawOverlays(Rect rect)
     {
-        string title = m_Selected != null ? m_Selected.Name : "未选择动作 — 右侧列表双击/单击开始";
+        string title = m_Selected != null
+            ? (m_Selected.CnName != null ? m_Selected.Name + "（" + m_Selected.CnName + "）" : m_Selected.Name)
+            : "未选择动作 — 右侧列表单击开始";
         GUI.Label(new Rect(rect.x + 8, rect.y + 6, rect.width - 16, 20), title,
             EditorStyles.whiteMiniLabel);
+        string bindWarn = BindingWarnText();
+        if (bindWarn != null)
+            GUI.Label(new Rect(rect.x + 8, rect.y + 26, rect.width - 16, 18), bindWarn, m_WarnStyle);
         DrawSlotTag(rect, m_P1, m_ShowP1, "玩家1(男)");
         DrawSlotTag(rect, m_P2, m_ShowP2, "玩家2(女)");
         GUI.Label(new Rect(rect.x + 8, rect.yMax - 22, rect.width - 16, 16),
             "左键拖拽旋转 · 滚轮缩放 · 空格播放/暂停", EditorStyles.whiteMiniLabel);
+    }
+
+    // 有曲线绑定失败时给出红字提示（Unity 静默丢弃这些曲线，模型会表现为「不跟着动」）
+    string BindingWarnText()
+    {
+        if (m_Selected == null) return null;
+        List<string> parts = new List<string>();
+        if (m_ShowP1) AppendBindWarn(m_P1, "P1", parts);
+        if (m_ShowP2) AppendBindWarn(m_P2, "P2", parts);
+        if (parts.Count == 0) return null;
+        return string.Join("   ", parts) + " — 曲线路径与骨架不匹配，缺失部分不会动";
+    }
+
+    static void AppendBindWarn(ModelSlot slot, string tag, List<string> parts)
+    {
+        if (slot.Clip == null || slot.TotalCurves <= 0) return;
+        if (slot.BoundCurves >= slot.TotalCurves) return;
+        parts.Add($"{tag} 仅绑定 {slot.BoundCurves}/{slot.TotalCurves} 条曲线");
     }
 
     void DrawSlotTag(Rect rect, ModelSlot slot, bool visible, string label)
@@ -838,7 +1080,13 @@ public class AnimPreviewWindow : EditorWindow
 
         GUILayout.EndHorizontal();
 
-        GUILayout.Label($"显示 {m_Filtered.Count} / 共 {m_All.Count}（男 {m_MaleCount} · 女 {m_FemaleCount}）",
+        // 分类下拉：与顶栏按钮等价，放在列表正上方保证可见
+        EnsureCatLabels();
+        int pick = EditorGUILayout.Popup("分类", m_CatFilter, m_CatLabels, GUILayout.Height(18));
+        if (pick != m_CatFilter) SetCatFilter(pick);
+
+        string catText = m_CatFilter == 0 ? "" : " · " + kCategories[m_CatFilter - 1];
+        GUILayout.Label($"显示 {m_Filtered.Count} / 共 {m_All.Count}（男 {m_MaleCount} · 女 {m_FemaleCount}）{catText}",
             EditorStyles.miniLabel);
 
         DrawList();
@@ -871,7 +1119,11 @@ public class AnimPreviewWindow : EditorWindow
                 else if (hover)
                     EditorGUI.DrawRect(row, new Color(1f, 1f, 1f, 0.06f));
 
-                GUI.Label(new Rect(row.x + 6, row.y, row.width - 66, row.height), e.Name, m_NameStyle);
+                string label = e.CnName != null ? e.Name + "（" + e.CnName + "）" : e.Name;
+                GUI.Label(new Rect(row.x + 6, row.y, row.width - 126, row.height), label, m_NameStyle);
+                // 分类标签（灰字，跟在名称后、性别徽章前）
+                GUI.Label(new Rect(row.xMax - 118, row.y, 56, row.height),
+                    e.Category ?? "", EditorStyles.centeredGreyMiniLabel);
                 GUI.Label(new Rect(row.xMax - 58, row.y, 26, row.height),
                     e.MalePath != null ? "男" : "-", e.MalePath != null ? m_YesStyle : m_NoStyle);
                 GUI.Label(new Rect(row.xMax - 30, row.y, 26, row.height),
@@ -910,7 +1162,7 @@ public class AnimPreviewWindow : EditorWindow
         }
 
         GUILayout.Label($"{cur:0.00} / {len:0.00}s", EditorStyles.miniLabel, GUILayout.Width(96));
-        GUILayout.Label(StatusText(), EditorStyles.miniLabel);
+        GUILayout.Label(StatusText(), m_StatusStyle);
         GUILayout.EndHorizontal();
     }
 
@@ -920,18 +1172,27 @@ public class AnimPreviewWindow : EditorWindow
         List<string> parts = new List<string>();
         if (m_ShowP1)
         {
-            if (m_P1.Clip != null) parts.Add("P1:" + m_P1.Clip.name);
+            if (m_P1.Clip != null) parts.Add("P1:" + m_P1.Clip.name + BindStat(m_P1));
             else parts.Add(m_Selected.MalePath == null ? "P1:无男版" : "P1:未加载");
         }
 
         if (m_ShowP2)
         {
-            if (m_P2.Clip != null) parts.Add("P2:" + m_P2.Clip.name);
+            if (m_P2.Clip != null) parts.Add("P2:" + m_P2.Clip.name + BindStat(m_P2));
             else parts.Add(m_Selected.FemalePath == null ? "P2:无女版" : "P2:未加载");
         }
 
         if (parts.Count == 0) parts.Add("未显示任何模型");
         return string.Join("   ", parts);
+    }
+
+    // 已绑定/总曲线数；有缺失时标红
+    static string BindStat(ModelSlot slot)
+    {
+        if (slot.TotalCurves <= 0) return string.Empty;
+        if (slot.BoundCurves >= slot.TotalCurves)
+            return $" <color=#7BD88F>{slot.BoundCurves}/{slot.TotalCurves}</color>";
+        return $" <color=#FF6B6B>{slot.BoundCurves}/{slot.TotalCurves}</color>";
     }
 
     void HandleKeys()
