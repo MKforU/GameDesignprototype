@@ -65,6 +65,13 @@ public class AnimPreviewWindow : EditorWindow
     [SerializeField] float m_Dist = 3f;
     [SerializeField] Vector3 m_Pivot = new Vector3(0f, 1f, 0f);
 
+    // 外部动作清单（CSV 导入）：用于「仅查看这批动作」
+    [SerializeField] List<string> m_MarkNames = new List<string>();
+    [SerializeField] string m_MarkPath = "";
+    [SerializeField] bool m_MarkOnly;
+    HashSet<string> m_MarkSet; // 由 m_MarkNames 构建（忽略大小写）
+    int m_MarkHit; // 清单中能在当前工程找到的数量
+
     PreviewRenderUtility m_Preview;
     ModelSlot m_P1 = new ModelSlot();
     ModelSlot m_P2 = new ModelSlot();
@@ -159,6 +166,7 @@ public class AnimPreviewWindow : EditorWindow
             e.CnName = LookupCn(e.Name);
         }
 
+        RebuildMarkSet();
         RebuildFilter();
     }
 
@@ -198,6 +206,7 @@ public class AnimPreviewWindow : EditorWindow
         string query = (m_Search ?? string.Empty).Trim();
         foreach (AnimEntry e in m_All)
         {
+            if (m_MarkOnly && (m_MarkSet == null || !m_MarkSet.Contains(e.Name))) continue;
             if (m_GenderFilter == 1 && e.MalePath == null) continue;
             if (m_GenderFilter == 2 && e.FemalePath == null) continue;
             if (m_CatFilter > 0 && e.Category != kCategories[m_CatFilter - 1]) continue;
@@ -208,6 +217,159 @@ public class AnimPreviewWindow : EditorWindow
             if (e.MalePath != null) m_MaleCount++;
             if (e.FemalePath != null) m_FemaleCount++;
         }
+    }
+
+    #endregion
+
+    #region 动作清单导入
+
+    const string kMarkDirKey = "AnimPreviewWindow.MarkDir";
+
+    void RebuildMarkSet()
+    {
+        m_MarkSet = m_MarkNames.Count == 0
+            ? null
+            : new HashSet<string>(m_MarkNames, StringComparer.OrdinalIgnoreCase);
+        RecalcMarkHit();
+    }
+
+    // 清单名在当前扫描结果里的命中数（用于导入后提示填错的名字）
+    void RecalcMarkHit()
+    {
+        m_MarkHit = 0;
+        if (m_MarkSet == null) return;
+        foreach (AnimEntry e in m_All)
+            if (m_MarkSet.Contains(e.Name)) m_MarkHit++;
+    }
+
+    void ImportMarkList()
+    {
+        string dir = EditorPrefs.GetString(kMarkDirKey, "");
+        string path = EditorUtility.OpenFilePanel("选择动作清单 CSV", dir, "csv,txt");
+        if (string.IsNullOrEmpty(path)) return;
+        EditorPrefs.SetString(kMarkDirKey, Path.GetDirectoryName(path));
+
+        List<string> names = new List<string>();
+        HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            foreach (string raw in ReadAllLinesCompat(path))
+            {
+                string line = raw.Trim();
+                if (line.Length == 0 || line[0] == '#') continue;
+                string cell = FirstCell(line);
+                if (cell.Length == 0) continue;
+                if (names.Count == 0 && IsHeaderCell(cell)) continue; // 首行表头
+                if (seen.Add(cell)) names.Add(cell);
+            }
+        }
+        catch (Exception ex)
+        {
+            EditorUtility.DisplayDialog("导入清单失败", ex.Message, "确定");
+            return;
+        }
+
+        if (names.Count == 0)
+        {
+            EditorUtility.DisplayDialog("导入清单", "未读到任何动作名，请检查文件内容。", "确定");
+            return;
+        }
+
+        m_MarkNames = names;
+        m_MarkPath = path;
+        m_MarkOnly = true;
+        RebuildMarkSet();
+        m_ListScroll = Vector2.zero;
+        RebuildFilter();
+        Repaint();
+
+        // 报告清单里在工程中找不到的名字（多半是拼写不一致）
+        List<string> missing = new List<string>();
+        foreach (string n in names)
+        {
+            bool found = false;
+            foreach (AnimEntry e in m_All)
+            {
+                if (string.Equals(e.Name, n, StringComparison.OrdinalIgnoreCase))
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) missing.Add(n);
+        }
+
+        string msg = $"导入 {names.Count} 项，命中 {m_MarkHit} 项";
+        if (missing.Count > 0)
+        {
+            int show = Mathf.Min(missing.Count, 15);
+            msg += $"\n未找到 {missing.Count} 项（前 {show} 个）：\n" +
+                   string.Join("\n", missing.GetRange(0, show)) +
+                   (missing.Count > show ? "\n…" : "");
+            Debug.LogWarning($"[动作预览器] 清单未找到：{string.Join(", ", missing)}");
+        }
+
+        EditorUtility.DisplayDialog("导入动作清单", msg, "确定");
+    }
+
+    void ClearMarkList()
+    {
+        m_MarkNames.Clear();
+        m_MarkPath = "";
+        m_MarkOnly = false;
+        RebuildMarkSet();
+        RebuildFilter();
+        Repaint();
+    }
+
+    // Excel 保存的 CSV 可能是 UTF-8（带/不带 BOM）或 GBK；动作名是 ASCII，但备注/表头可能是中文
+    static string[] ReadAllLinesCompat(string path)
+    {
+        byte[] bytes = File.ReadAllBytes(path);
+        if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+            return Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3).Split('\n');
+        try
+        {
+            return new UTF8Encoding(false, true).GetString(bytes).Split('\n'); // 严格 UTF-8，失败抛异常
+        }
+        catch (DecoderFallbackException)
+        {
+            return Encoding.GetEncoding(936).GetString(bytes).Split('\n'); // GBK（Excel 中文默认）
+        }
+    }
+
+    // 取首个字段：支持逗号或 Tab 分隔、双引号包裹
+    static string FirstCell(string line)
+    {
+        string cell;
+        int tab = line.IndexOf('\t');
+        if (tab >= 0)
+        {
+            cell = line.Substring(0, tab);
+        }
+        else if (line.Length >= 2 && line[0] == '"')
+        {
+            int end = line.IndexOf('"', 1);
+            cell = end > 0 ? line.Substring(1, end - 1) : line.Substring(1);
+        }
+        else
+        {
+            int comma = line.IndexOf(',');
+            cell = comma >= 0 ? line.Substring(0, comma) : line;
+        }
+
+        return cell.Trim();
+    }
+
+    static bool IsHeaderCell(string s)
+    {
+        return s.Equals("name", StringComparison.OrdinalIgnoreCase) ||
+               s.Equals("anim", StringComparison.OrdinalIgnoreCase) ||
+               s.Equals("animation", StringComparison.OrdinalIgnoreCase) ||
+               s.Equals("动作名", StringComparison.Ordinal) ||
+               s.Equals("命名", StringComparison.Ordinal) ||
+               s.Equals("动作名称", StringComparison.Ordinal);
     }
 
     #endregion
@@ -1068,6 +1230,34 @@ public class AnimPreviewWindow : EditorWindow
         }
 
         GUILayout.EndHorizontal();
+
+        // 动作清单：导入 CSV 后可只看这批动作
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button(m_MarkNames.Count > 0 ? "重导清单" : "导入清单", GUILayout.Height(18)))
+            ImportMarkList();
+        bool markOnly = GUILayout.Toggle(m_MarkOnly && m_MarkSet != null, "仅看清单",
+            EditorStyles.miniButton, GUILayout.Height(18));
+        if (markOnly != m_MarkOnly)
+        {
+            m_MarkOnly = markOnly;
+            RebuildFilter();
+            Repaint();
+        }
+
+        using (new EditorGUI.DisabledScope(m_MarkNames.Count == 0))
+        {
+            if (GUILayout.Button("清除", GUILayout.Width(40), GUILayout.Height(18)))
+                ClearMarkList();
+        }
+
+        GUILayout.EndHorizontal();
+        if (m_MarkNames.Count > 0)
+        {
+            string markInfo = $"清单 {m_MarkHit}/{m_MarkNames.Count} · {Path.GetFileName(m_MarkPath)}";
+            if (m_MarkHit < m_MarkNames.Count)
+                markInfo += "（部分名字未找到，导入时已提示）";
+            GUILayout.Label(markInfo, EditorStyles.miniLabel);
+        }
 
         GUILayout.BeginHorizontal();
         int nf = GUILayout.Toolbar(m_GenderFilter, new[] { "全部", "仅男", "仅女" },
