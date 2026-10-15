@@ -125,6 +125,7 @@ namespace GameEditor
         // ---- 投放表 ----
         ClothReleaseData _release;
         int _releaseFilter;   // 0全部 1仅已投放 2仅未投放
+        int _starFilter = -1;   // -1=全部，0..4 = t_item.f_LabelType（0未配置 1二星 2三星 3四星 4五星）
         int _relReleased;
         int _relUnreleased;
         int _relOut;
@@ -498,6 +499,8 @@ namespace GameEditor
                 if (_sexFilter >= 0 && e.Sex != _sexFilter) continue;
                 if (_onlyIssue && !IsIssueItem(e.Id)) continue;
                 if (keyword.Length > 0 && !MatchKeyword(e, keyword)) continue;
+                if (_starFilter >= 0 && e.Label != _starFilter) continue;
+
                 if (_releaseFilter > 0 && _release != null)
                 {
                     var rel = _release.Get(e.Id);
@@ -786,6 +789,14 @@ namespace GameEditor
                 ApplyFilter();
             }
 
+            var newStar = EditorGUILayout.Popup(_starFilter + 1, StarFilterLabels,
+                EditorStyles.toolbarPopup, GUILayout.Width(96f));
+            if (newStar - 1 != _starFilter)
+            {
+                _starFilter = newStar - 1;
+                ApplyFilter();
+            }
+
             var newSort = (SortMode)EditorGUILayout.Popup((int)_sort, new[] { "按ID排序", "按名称排序", "按部位排序" },
                 EditorStyles.toolbarPopup, GUILayout.Width(96f));
             if (newSort != _sort)
@@ -830,6 +841,12 @@ namespace GameEditor
         // ======================================================================
 
         const float TryOnHeight = 460f;
+
+        // 星级筛选选项；下标 = _starFilter + 1（-1→0），取值对应 t_item.f_LabelType：0未配置 1二星 2三星 3四星 4五星
+        static readonly string[] StarFilterLabels =
+        {
+            "星级:全部", "未配置", "二星", "三星", "四星", "五星",
+        };
 
         float TryOnOverhead() => m_ShowTryOn ? TryOnHeight + 26f : 0f;
 
