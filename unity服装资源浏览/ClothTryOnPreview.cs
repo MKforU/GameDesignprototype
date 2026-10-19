@@ -737,7 +737,7 @@ namespace GameEditor
                     ps.Simulate(0f, true, true);
                 }
 
-                fx.SetActive(m_EffectsOn);
+                fx.SetActive(m_EffectsOn && IsItemFxEnabled(item.f_ItemID));
                 effectOut.Add(fx);
             }
         }
@@ -928,6 +928,64 @@ namespace GameEditor
         // ======================================================================
 
         /// <summary>特效总开关：关闭=隐藏已创建的特效对象。</summary>
+        /// <summary>按件特效开关（itemId → false=该件特效关闭）；默认跟随全局开关。</summary>
+        readonly Dictionary<uint, bool> m_ItemFxEnabled = new Dictionary<uint, bool>();
+
+        public bool IsItemFxEnabled(uint id) => !m_ItemFxEnabled.TryGetValue(id, out var v) || v;
+
+        /// <summary>
+        /// 按件/按套开关特效。ids 传关联道具（男女同编号套装的成员一起关/开）；
+        /// 打开时重播该件粒子——隐藏过的粒子若不重播，重新显示后会停在旧状态（看着像没有特效）。
+        /// </summary>
+        public void SetItemFxEnabled(IEnumerable<uint> ids, bool enabled)
+        {
+            var idSet = new HashSet<uint>(ids);
+            foreach (var id in idSet)
+                m_ItemFxEnabled[id] = enabled;
+
+            foreach (var slot in new[] { m_Male, m_Female })
+            {
+                foreach (var kv in slot.Worn)
+                {
+                    if (!idSet.Contains(kv.Key))
+                        continue;
+                    var visible = m_EffectsOn && enabled;
+                    foreach (var fx in kv.Value.Effects)
+                    {
+                        if (fx != null)
+                            fx.SetActive(visible);
+                    }
+
+                    if (visible)
+                        RestartParticles(kv.Value);
+                }
+            }
+        }
+
+        /// <summary>该道具的服装 prefab 是否配置了特效（供界面判断要不要显示开关）。</summary>
+        public bool ItemHasEffects(uint id)
+        {
+            var equip = Config_t_equip.Singleton.GetConfig(id);
+            if (equip == null || string.IsNullOrEmpty(equip.f_Model))
+                return false;
+            foreach (var raw in equip.f_Model.Split('|', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var name = raw.Trim();
+                if (name.Length == 0)
+                    continue;
+                var prefab = LoadPrefabCached(ClothPrefabFolder, name)
+                             ?? LoadPrefabCached(ClothLowPrefabFolder, name + "_low")
+                             ?? LoadPrefabCached(ModelEquipFolder, name);
+                if (prefab == null)
+                    continue;
+                var cfg = prefab.GetComponent<ClothConfigData>();
+                if (cfg != null && cfg.Effects != null && cfg.Effects.Length > 0)
+                    return true;
+            }
+
+            return false;
+        }
+
         public void SetEffectsOn(bool on)
         {
             if (m_EffectsOn == on)
@@ -935,12 +993,13 @@ namespace GameEditor
             m_EffectsOn = on;
             foreach (var slot in new[] { m_Male, m_Female })
             {
-                foreach (var part in slot.Worn.Values)
+                foreach (var kv in slot.Worn)
                 {
-                    foreach (var fx in part.Effects)
+                    var visible = on && IsItemFxEnabled(kv.Key);
+                    foreach (var fx in kv.Value.Effects)
                     {
                         if (fx != null)
-                            fx.SetActive(on);
+                            fx.SetActive(visible);
                     }
                 }
             }
@@ -949,18 +1008,24 @@ namespace GameEditor
                 RestartEffects();
         }
 
+        /// <summary>重播一件已穿服装的全部粒子（清空后从 0 重新模拟）。</summary>
+        static void RestartParticles(WornPart part)
+        {
+            foreach (var ps in part.Particles)
+            {
+                if (ps == null)
+                    continue;
+                ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                ps.Simulate(0f, true, true);
+            }
+        }
+
         void RestartEffects()
         {
             foreach (var slot in new[] { m_Male, m_Female })
             {
                 foreach (var part in slot.Worn.Values)
-                {
-                    foreach (var ps in part.Particles)
-                    {
-                        if (ps != null)
-                            ps.Simulate(0f, true, true);
-                    }
-                }
+                    RestartParticles(part);
             }
         }
 

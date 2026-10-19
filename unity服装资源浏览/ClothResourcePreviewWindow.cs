@@ -947,6 +947,41 @@ namespace GameEditor
             Repaint();
         }
 
+        /// <summary>与该件联动的道具：自身 + 同编号套装（m_0007 ↔ f_0007）全部成员，男女两侧一起开关。</summary>
+        List<uint> GetFxLinkedIds(uint id)
+        {
+            var result = new List<uint> { id };
+            ClothEntry entry = null;
+            foreach (var e in _entries)
+            {
+                if (e.Id != id)
+                    continue;
+                entry = e;
+                break;
+            }
+
+            if (entry == null || entry.GroupIds.Length == 0)
+                return result;
+
+            var bases = new HashSet<string>();
+            foreach (var gid in entry.GroupIds)
+                bases.Add(gid.StartsWith("m_") || gid.StartsWith("f_") ? gid.Substring(2) : gid);
+
+            foreach (var g in _groupList)
+            {
+                var gb = g.Id.StartsWith("m_") || g.Id.StartsWith("f_") ? g.Id.Substring(2) : g.Id;
+                if (!bases.Contains(gb))
+                    continue;
+                foreach (var member in g.Entries)
+                {
+                    if (!result.Contains(member.Id))
+                        result.Add(member.Id);
+                }
+            }
+
+            return result;
+        }
+
         string ReleaseText(uint id)
         {
             if (_release == null)
@@ -1125,6 +1160,8 @@ namespace GameEditor
                 GUI.DrawTexture(iconRect, tex, ScaleMode.ScaleToFit);
             else
                 GUI.Label(iconRect, "无图标", EditorStyles.centeredGreyMiniLabel);
+            if (m_TryOn != null && m_TryOn.ItemHasEffects(e.Id))
+                GUI.Label(new Rect(iconRect.x + 2f, iconRect.y + 2f, 22f, 14f), "FX", _badgePartial);
 
             var nameRect = new Rect(rect.x + 4f, rect.y + 86f, rect.width - 8f, 30f);
             GUI.Label(nameRect, string.IsNullOrEmpty(e.Name) ? e.Id.ToString() : e.Name, _cellNameStyle);
@@ -1158,6 +1195,16 @@ namespace GameEditor
                 GUI.DrawTexture(iconRect, tex, ScaleMode.ScaleToFit);
             else
                 GUI.Label(iconRect, "无图标", EditorStyles.centeredGreyMiniLabel);
+            if (m_TryOn != null)
+            {
+                foreach (var member in group.Entries)
+                {
+                    if (!m_TryOn.ItemHasEffects(member.Id))
+                        continue;
+                    GUI.Label(new Rect(iconRect.x + 2f, iconRect.y + 2f, 22f, 14f), "FX", _badgePartial);
+                    break;
+                }
+            }
 
             var nameRect = new Rect(rect.x + 4f, rect.y + 86f, rect.width - 8f, 30f);
             GUI.Label(nameRect, string.IsNullOrEmpty(group.Name) ? group.Id : group.Name, _cellNameStyle);
@@ -1440,6 +1487,18 @@ namespace GameEditor
                 EditorGUILayout.LabelField("相机参数", string.IsNullOrEmpty(selected.Equip.f_CamInfo) ? "（空）" : selected.Equip.f_CamInfo);
                 EditorGUILayout.LabelField("待机动画", string.IsNullOrEmpty(selected.Equip.f_StandbyAction) ? "（空）" : selected.Equip.f_StandbyAction);
             EditorGUILayout.LabelField("特效开关", selected.Equip == null ? "-" : (selected.Equip.f_CanEffect == 1 ? "显示（f_CanEffect=1）" : "隐藏（f_CanEffect=0）"));
+
+            // 按件试穿特效开关：只有配置了特效的衣服显示
+            if (m_TryOn != null && m_TryOn.ItemHasEffects(selected.Id))
+            {
+                var fxOn = m_TryOn.IsItemFxEnabled(selected.Id);
+                var fxNew = EditorGUILayout.Toggle(new GUIContent("试穿特效", "关闭/打开时男女同编号套装一起生效"), fxOn);
+                if (fxNew != fxOn)
+                {
+                    m_TryOn.SetItemFxEnabled(GetFxLinkedIds(selected.Id), fxNew);
+                    Repaint();
+                }
+            }
             }
             else
             {
