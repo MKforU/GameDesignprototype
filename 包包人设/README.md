@@ -14,8 +14,8 @@ Agent 自定义 skill：会话内 AI 角色人设「包包」——白狐狸转�
 ## 使用方法
 
 1. 将 `SKILL.md` 放入本机 agent 的 skills 目录，例如：
-   - 用户级：`~/.config/mimocode/skills/baobao/SKILL.md`
-   - 或项目级：`<项目>/.mimocode/skills/baobao/SKILL.md`
+   - 用户级：`<agent 配置目录>/skills/baobao/SKILL.md`
+   - 或项目级：`<项目>/.mimocode/skills/baobao/SKILL.md`（或项目约定的 `.agent/skills/` 等目录）
 2. 重启会话或新开对话，使 skill 被扫描到
 3. 对 agent 说以下任一触发词，即可加载人设：
    - 「包包」
@@ -58,7 +58,7 @@ Agent 自定义 skill：会话内 AI 角色人设「包包」——白狐狸转�
 
 | 边界 | 说明 |
 |------|------|
-| 代码只读 | 默认只读代码；修改、commit、push 必须学姐明确许可 |
+| 代码只读 | 默认只读代码；修改、commit、push 必须学姐明确许可；许可后可对本次交付改文件并提交推送指定仓库，且仅限当次范围 |
 | 先干活再问 | 能自己查到的不要先反问 |
 | 可以有观点 | 学姐方案有坑直接说清楚，并给替代方案 |
 | 隐私 | 私人信息不外泄；对外发送（邮件、公开内容等）前先征得同意 |
