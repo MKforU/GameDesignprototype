@@ -200,7 +200,7 @@ namespace GameEditor
             if (m_TryOn == null || !m_ShowTryOn)
                 return;
             var wantFx = m_TryOn.EffectsOn;
-            if (!m_TryOn.Playing && !wantFx)
+            if (!m_TryOn.Playing && !wantFx && !m_TryOn.Flying)
                 return;
 
             var now = EditorApplication.timeSinceStartup;
@@ -215,6 +215,8 @@ namespace GameEditor
             m_FxAccum = 0f;
 
             var need = false;
+            if (m_TryOn.Flying)
+                need |= m_TryOn.TickFlyInput(step);
             if (m_TryOn.Playing)
                 need |= m_TryOn.Tick(step);
             if (wantFx)
@@ -840,7 +842,7 @@ namespace GameEditor
         // 3D 试穿
         // ======================================================================
 
-        const float TryOnHeight = 460f;
+        [SerializeField] float m_TryOnHeight = 460f;   // 3D试穿区高度，可在窗口内拖拽调整并记忆
 
         // 星级筛选选项；下标 = _starFilter + 1（-1→0），取值对应 t_item.f_LabelType：0未配置 1二星 2三星 3四星 4五星
         static readonly string[] StarFilterLabels =
@@ -848,7 +850,7 @@ namespace GameEditor
             "星级:全部", "未配置", "二星", "三星", "四星", "五星",
         };
 
-        float TryOnOverhead() => m_ShowTryOn ? TryOnHeight + 26f : 0f;
+        float TryOnOverhead() => m_ShowTryOn ? m_TryOnHeight + 32f : 0f;
 
 
         void EnsureTryOn()
@@ -863,7 +865,7 @@ namespace GameEditor
         void DrawTryOnPanel()
         {
             EnsureTryOn();
-            var rect = GUILayoutUtility.GetRect(200f, TryOnHeight, GUILayout.ExpandWidth(true));
+            var rect = GUILayoutUtility.GetRect(200f, m_TryOnHeight, GUILayout.ExpandWidth(true));
             m_TryOn.Draw(rect, "3D试穿 · 点击单品直接穿上，套装行点击穿整套");
 
             EditorGUILayout.BeginHorizontal();
@@ -904,6 +906,46 @@ namespace GameEditor
             GUILayout.Label("男: " + m_TryOn.MaleSummary + "    女: " + m_TryOn.FemaleSummary,
                 EditorStyles.miniLabel);
             EditorGUILayout.EndHorizontal();
+
+            DrawTryOnSplitter();
+        }
+
+
+        /// <summary>预览区与网格之间的拖拽条：上下拖动调整3D试穿区高度。</summary>
+        void DrawTryOnSplitter()
+        {
+            var rect = GUILayoutUtility.GetRect(GUIContent.none, GUIStyle.none, GUILayout.Height(6f), GUILayout.ExpandWidth(true));
+            EditorGUI.DrawRect(rect, new Color(0f, 0f, 0f, 0.45f));
+            EditorGUIUtility.AddCursorRect(rect, MouseCursor.ResizeVertical);
+
+            var e = Event.current;
+            var id = GUIUtility.GetControlID("TryOnSplitter".GetHashCode(), FocusType.Passive);
+            switch (e.GetTypeForControl(id))
+            {
+                case EventType.MouseDown:
+                    if (e.button == 0 && rect.Contains(e.mousePosition))
+                    {
+                        GUIUtility.hotControl = id;
+                        e.Use();
+                    }
+                    break;
+                case EventType.MouseDrag:
+                    if (GUIUtility.hotControl == id)
+                    {
+                        var maxH = Mathf.Max(220f, position.height - 300f);
+                        m_TryOnHeight = Mathf.Clamp(m_TryOnHeight + e.delta.y, 180f, maxH);
+                        e.Use();
+                        Repaint();
+                    }
+                    break;
+                case EventType.MouseUp:
+                    if (GUIUtility.hotControl == id)
+                    {
+                        GUIUtility.hotControl = 0;
+                        e.Use();
+                    }
+                    break;
+            }
         }
 
         void WearItem(ClothEntry e)

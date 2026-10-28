@@ -84,6 +84,11 @@ namespace GameEditor
         Vector3 m_Pivot = new Vector3(0f, 1f, 0f);
 
         // 动画
+        // 漫游（右键+WASD，对齐 Scene 视图）
+        bool m_Flying;
+        Vector3 m_FlyPos;
+        bool m_KeyW, m_KeyA, m_KeyS, m_KeyD, m_KeyQ, m_KeyE, m_KeyShift;
+
         float m_Time;
         bool m_Playing;
         float m_Speed = 1f;
@@ -92,6 +97,7 @@ namespace GameEditor
 
         public bool Playing => m_Playing;
         public bool EffectsOn => m_EffectsOn;
+        public bool Flying => m_Flying;
 
         /// <summary>诊断：已创建的特效对象数/粒子系统数/累计驱动时间。</summary>
         public string EffectStats
@@ -897,6 +903,33 @@ namespace GameEditor
             ApplySample();
         }
 
+        /// <summary>漫游移动：WASD 平移、Q/E 降/升、Shift 加速（仅右键按住期间生效）。</summary>
+        public bool TickFlyInput(float dt)
+        {
+            if (!m_Flying)
+                return false;
+
+            var rot = Quaternion.Euler(m_Pitch, m_Yaw, 0f);
+            var speed = (m_Dist * 1.0f + 0.5f) * (m_KeyShift ? 4f : 1f) * Mathf.Min(dt, 0.1f);
+            var move = Vector3.zero;
+            if (m_KeyW) move += rot * Vector3.forward;
+            if (m_KeyS) move -= rot * Vector3.forward;
+            if (m_KeyD) move += rot * Vector3.right;
+            if (m_KeyA) move -= rot * Vector3.right;
+            if (m_KeyE) move += Vector3.up;
+            if (m_KeyQ) move -= Vector3.up;
+            if (move.sqrMagnitude < 1e-6f)
+                return false;
+
+            m_FlyPos += move.normalized * speed;
+            return true;
+        }
+
+        void ClearFlyKeys()
+        {
+            m_KeyW = m_KeyA = m_KeyS = m_KeyD = m_KeyQ = m_KeyE = m_KeyShift = false;
+        }
+
         float ClipLength()
         {
             if (m_Male.IdleClip != null)
@@ -1116,11 +1149,20 @@ namespace GameEditor
             m_Dist = radius / Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad) * 1.3f;
         }
 
+        /// <summary>相机位置：漫游中用飞行点，否则绕 pivot 环绕。</summary>
+        Vector3 GetCamPos()
+        {
+            if (m_Flying)
+                return m_FlyPos;
+            var rot = Quaternion.Euler(m_Pitch, m_Yaw, 0f);
+            return m_Pivot + rot * new Vector3(0f, 0f, -m_Dist);
+        }
+
         void UpdateCamera()
         {
             var rot = Quaternion.Euler(m_Pitch, m_Yaw, 0f);
             var cam = m_Preview.camera;
-            cam.transform.position = m_Pivot + rot * new Vector3(0f, 0f, -m_Dist);
+            cam.transform.position = GetCamPos();
             cam.transform.rotation = rot;
         }
 
@@ -1150,7 +1192,7 @@ namespace GameEditor
                     EditorStyles.whiteMiniLabel);
 
             GUI.Label(new Rect(rect.x + 8f, rect.yMax - 20f, rect.width - 16f, 16f),
-                "左键拖拽旋转 · 滚轮缩放", EditorStyles.whiteMiniLabel);
+                "右键按住+WASD 漫游（QE 升降 Shift 加速）· Alt+左键 环绕 · 中键 平移 · 滚轮 缩放 · F 重置视角", EditorStyles.whiteMiniLabel);
         }
 
         void DrawSlotTag(Rect rect, Slot slot, string label)
@@ -1198,31 +1240,109 @@ namespace GameEditor
             var id = GUIUtility.GetControlID(CamControlName.GetHashCode(), FocusType.Passive);
             switch (e.GetTypeForControl(id))
             {
-                case EventType.MouseDown:
-                    if (e.button == 0 && rect.Contains(e.mousePosition))
+                case EventType.KeyDown:
+                    if (e.keyCode == KeyCode.F && rect.Contains(e.mousePosition))
                     {
+                        Reframe();
+                        e.Use();
+                        RepaintHost();
+                        break;
+                    }
+                    if (m_Flying)
+                    {
+                        switch (e.keyCode)
+                        {
+                            case KeyCode.W: m_KeyW = true; break;
+                            case KeyCode.A: m_KeyA = true; break;
+                            case KeyCode.S: m_KeyS = true; break;
+                            case KeyCode.D: m_KeyD = true; break;
+                            case KeyCode.E: m_KeyE = true; break;
+                            case KeyCode.Q: m_KeyQ = true; break;
+                            case KeyCode.LeftShift:
+                            case KeyCode.RightShift: m_KeyShift = true; break;
+                        }
+                    }
+                    break;
+                case EventType.KeyUp:
+                    if (m_Flying)
+                    {
+                        switch (e.keyCode)
+                        {
+                            case KeyCode.W: m_KeyW = false; break;
+                            case KeyCode.A: m_KeyA = false; break;
+                            case KeyCode.S: m_KeyS = false; break;
+                            case KeyCode.D: m_KeyD = false; break;
+                            case KeyCode.E: m_KeyE = false; break;
+                            case KeyCode.Q: m_KeyQ = false; break;
+                            case KeyCode.LeftShift:
+                            case KeyCode.RightShift: m_KeyShift = false; break;
+                        }
+                    }
+                    break;
+                case EventType.MouseDown:
+                    // 对齐 Scene：右键=漫游(WASD) · Alt+左键=环绕 · 中键=平移 · Alt+右键=推拉
+                    if (rect.Contains(e.mousePosition) &&
+                        ((e.button == 1 && !e.alt) || (e.alt && e.button == 0) || e.button == 2 || (e.alt && e.button == 1)))
+                    {
+                        if (e.button == 1 && !e.alt)
+                        {
+                            // 先取当前位置再进入漫游（顺序反了 GetCamPos 会返回未初始化的 FlyPos）
+                            m_FlyPos = GetCamPos();
+                            m_Flying = true;
+                            ClearFlyKeys();
+                        }
+
                         GUIUtility.hotControl = id;
                         e.Use();
                     }
-
                     break;
                 case EventType.MouseDrag:
-                    if (GUIUtility.hotControl == id)
+                    if (GUIUtility.hotControl != id)
+                        break;
+                    if (e.button == 2)
                     {
+                        // 中键平移（内容跟随鼠标）
+                        var rot = Quaternion.Euler(m_Pitch, m_Yaw, 0f);
+                        var panScale = m_Dist * 0.0035f;
+                        m_Pivot -= (rot * Vector3.right * e.delta.x + rot * Vector3.up * e.delta.y) * panScale;
+                    }
+                    else if (e.button == 1)
+                    {
+                        if (e.alt)
+                        {
+                            m_Dist = Mathf.Clamp(m_Dist * (1f + e.delta.y * 0.04f), 0.5f, 60f);
+                        }
+                        else
+                        {
+                            // 右键漫游视角（Event.delta.y GUI坐标向下为正：鼠标上移=抬头）
+                            m_Yaw += e.delta.x * 0.25f;
+                            m_Pitch = Mathf.Clamp(m_Pitch + e.delta.y * 0.25f, -89f, 89f);
+                        }
+                    }
+                    else
+                    {
+                        // Alt+左键 环绕
                         m_Yaw += e.delta.x * 0.3f;
                         m_Pitch = Mathf.Clamp(m_Pitch - e.delta.y * 0.3f, -89f, 89f);
-                        e.Use();
-                        RepaintHost();
                     }
-
+                    e.Use();
+                    RepaintHost();
                     break;
                 case EventType.MouseUp:
                     if (GUIUtility.hotControl == id)
                     {
+                        if (m_Flying)
+                        {
+                            // 退出漫游：把环绕 pivot 放到视线前方 dist 处，继续环绕不跳视角
+                            var rot = Quaternion.Euler(m_Pitch, m_Yaw, 0f);
+                            m_Pivot = m_FlyPos + rot * new Vector3(0f, 0f, m_Dist);
+                            m_Flying = false;
+                            ClearFlyKeys();
+                        }
+
                         GUIUtility.hotControl = 0;
                         e.Use();
                     }
-
                     break;
                 case EventType.ScrollWheel:
                     if (rect.Contains(e.mousePosition))
@@ -1231,7 +1351,6 @@ namespace GameEditor
                         e.Use();
                         RepaintHost();
                     }
-
                     break;
             }
         }
