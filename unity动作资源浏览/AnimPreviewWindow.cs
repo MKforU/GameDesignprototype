@@ -67,10 +67,15 @@ public class AnimPreviewWindow : EditorWindow
 
     // 外部动作清单（CSV 导入）：用于「仅查看这批动作」
     [SerializeField] List<string> m_MarkNames = new List<string>();
+    [SerializeField] List<string> m_MarkSrcs = new List<string>(); // 与 m_MarkNames 平行：出处（可空串）
     [SerializeField] string m_MarkPath = "";
     [SerializeField] bool m_MarkOnly;
+    [SerializeField] int m_MarkUseFilter; // 0=全部 1=已用 2=未用
     HashSet<string> m_MarkSet; // 由 m_MarkNames 构建（忽略大小写）
+    readonly Dictionary<string, string> m_MarkSrcMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     int m_MarkHit; // 清单中能在当前工程找到的数量
+    int m_MarkUsed; // 清单中出处非空（已用）的数量
+    [SerializeField] int m_MarkRowCount; // 导入时的原始数据行数（含同名重复行）
 
     PreviewRenderUtility m_Preview;
     ModelSlot m_P1 = new ModelSlot();
@@ -89,6 +94,7 @@ public class AnimPreviewWindow : EditorWindow
     GUIStyle m_NoStyle;
     GUIStyle m_StatusStyle;
     GUIStyle m_WarnStyle;
+    GUIStyle m_SrcStyle;
 
     [MenuItem("Tools/动作预览器")]
     static void Open()
@@ -99,6 +105,7 @@ public class AnimPreviewWindow : EditorWindow
     void OnEnable()
     {
         EditorApplication.update += OnEdUpdate;
+        wantsMouseMove = true; // 暂停时也能触发悬停重绘（列表 ✓ 的出处 tooltip）
         if (m_BoyPrefab == null) m_BoyPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(kBoyPath);
         if (m_GirlPrefab == null) m_GirlPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(kGirlPath);
         EnsurePreview();
@@ -206,7 +213,11 @@ public class AnimPreviewWindow : EditorWindow
         string query = (m_Search ?? string.Empty).Trim();
         foreach (AnimEntry e in m_All)
         {
-            if (m_MarkOnly && (m_MarkSet == null || !m_MarkSet.Contains(e.Name))) continue;
+            bool inList = m_MarkSet != null && m_MarkSet.Contains(e.Name);
+            if (m_MarkOnly && !inList) continue;
+            // 已用/未用 始终限定在清单内过滤（避免全量列表下「未用」等于整库）
+            if (m_MarkUseFilter == 1 && !(inList && MarkSource(e.Name) != null)) continue;
+            if (m_MarkUseFilter == 2 && !(inList && MarkSource(e.Name) == null)) continue;
             if (m_GenderFilter == 1 && e.MalePath == null) continue;
             if (m_GenderFilter == 2 && e.FemalePath == null) continue;
             if (m_CatFilter > 0 && e.Category != kCategories[m_CatFilter - 1]) continue;
@@ -230,6 +241,11 @@ public class AnimPreviewWindow : EditorWindow
         m_MarkSet = m_MarkNames.Count == 0
             ? null
             : new HashSet<string>(m_MarkNames, StringComparer.OrdinalIgnoreCase);
+        m_MarkSrcMap.Clear();
+        for (int i = 0; i < m_MarkNames.Count && i < m_MarkSrcs.Count; i++)
+            if (!string.IsNullOrEmpty(m_MarkSrcs[i]))
+                m_MarkSrcMap[m_MarkNames[i]] = m_MarkSrcs[i];
+        m_MarkUsed = m_MarkSrcMap.Count;
         RecalcMarkHit();
     }
 
@@ -242,6 +258,15 @@ public class AnimPreviewWindow : EditorWindow
             if (m_MarkSet.Contains(e.Name)) m_MarkHit++;
     }
 
+    // 取动作出处；不在清单或未填出处返回 null
+    string MarkSource(string animName)
+    {
+        if (string.IsNullOrEmpty(animName)) return null;
+        return m_MarkSrcMap.TryGetValue(animName, out string src) && !string.IsNullOrEmpty(src)
+            ? src
+            : null;
+    }
+
     void ImportMarkList()
     {
         string dir = EditorPrefs.GetString(kMarkDirKey, "");
@@ -250,17 +275,34 @@ public class AnimPreviewWindow : EditorWindow
         EditorPrefs.SetString(kMarkDirKey, Path.GetDirectoryName(path));
 
         List<string> names = new List<string>();
-        HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        List<string> srcs = new List<string>(); // 与 names 平行；同名行合并出处
+        Dictionary<string, int> index = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        int rowCount = 0; // 原始数据行数（含同名重复行）
         try
         {
             foreach (string raw in ReadAllLinesCompat(path))
             {
                 string line = raw.Trim();
                 if (line.Length == 0 || line[0] == '#') continue;
-                string cell = FirstCell(line);
+                SplitFirstTwo(line, out string cell, out string src);
                 if (cell.Length == 0) continue;
-                if (names.Count == 0 && IsHeaderCell(cell)) continue; // 首行表头
-                if (seen.Add(cell)) names.Add(cell);
+                if (rowCount == 0 && IsHeaderCell(cell)) continue; // 首行表头
+                rowCount++;
+                if (index.TryGetValue(cell, out int dup))
+                {
+                    // 同名重复行：出处用「；」合并（跳过空值与完全相同的段）
+                    if (string.IsNullOrEmpty(src)) continue;
+                    if (string.IsNullOrEmpty(srcs[dup]))
+                        srcs[dup] = src;
+                    else if (!HasSourceSegment(srcs[dup], src))
+                        srcs[dup] += "；" + src;
+                }
+                else
+                {
+                    index[cell] = names.Count;
+                    names.Add(cell);
+                    srcs.Add(src);
+                }
             }
         }
         catch (Exception ex)
@@ -276,8 +318,11 @@ public class AnimPreviewWindow : EditorWindow
         }
 
         m_MarkNames = names;
+        m_MarkSrcs = srcs;
         m_MarkPath = path;
         m_MarkOnly = true;
+        m_MarkUseFilter = 0; // 换批次时重置「已用/未用」，避免旧过滤藏行
+        m_MarkRowCount = rowCount;
         RebuildMarkSet();
         m_ListScroll = Vector2.zero;
         RebuildFilter();
@@ -300,7 +345,9 @@ public class AnimPreviewWindow : EditorWindow
             if (!found) missing.Add(n);
         }
 
-        string msg = $"导入 {names.Count} 项，命中 {m_MarkHit} 项";
+        string msg = $"导入 {rowCount} 行 → 清单 {names.Count} 个 · 已用 {m_MarkUsed} · 命中 {m_MarkHit}";
+        if (rowCount != names.Count)
+            msg += $"（{rowCount - names.Count} 行同名已合并出处）";
         if (missing.Count > 0)
         {
             int show = Mathf.Min(missing.Count, 15);
@@ -316,14 +363,18 @@ public class AnimPreviewWindow : EditorWindow
     void ClearMarkList()
     {
         m_MarkNames.Clear();
+        m_MarkSrcs.Clear();
         m_MarkPath = "";
         m_MarkOnly = false;
+        m_MarkUseFilter = 0;
+        m_MarkRowCount = 0;
         RebuildMarkSet();
         RebuildFilter();
         Repaint();
     }
 
-    // Excel 保存的 CSV 可能是 UTF-8（带/不带 BOM）或 GBK；动作名是 ASCII，但备注/表头可能是中文
+    // Excel 保存的 CSV 可能是 UTF-8（带/不带 BOM）或 GBK/GB18030；动作名是 ASCII，但出处/表头可能是中文
+    // 解码失败不阻断：最终兜底用系统默认编码尽力解码
     static string[] ReadAllLinesCompat(string path)
     {
         byte[] bytes = File.ReadAllBytes(path);
@@ -335,31 +386,74 @@ public class AnimPreviewWindow : EditorWindow
         }
         catch (DecoderFallbackException)
         {
-            return Encoding.GetEncoding(936).GetString(bytes).Split('\n'); // GBK（Excel 中文默认）
         }
+
+        foreach (int codePage in new[] { 936, 54936 }) // GBK → GB18030
+        {
+            try
+            {
+                return Encoding.GetEncoding(codePage).GetString(bytes).Split('\n');
+            }
+            catch (Exception)
+            {
+                // 该编码在当前运行时不可用，继续尝试下一个
+            }
+        }
+
+        return Encoding.Default.GetString(bytes).Split('\n'); // 最终兜底，不抛
     }
 
-    // 取首个字段：支持逗号或 Tab 分隔、双引号包裹
-    static string FirstCell(string line)
+    // 拆首列（动作名）与第二列（出处）：支持逗号或 Tab 分隔、首列双引号包裹；出处取剩余全部
+    static void SplitFirstTwo(string line, out string name, out string source)
     {
-        string cell;
-        int tab = line.IndexOf('\t');
-        if (tab >= 0)
+        int sep;
+        if (line.Length >= 2 && line[0] == '"')
         {
-            cell = line.Substring(0, tab);
-        }
-        else if (line.Length >= 2 && line[0] == '"')
-        {
-            int end = line.IndexOf('"', 1);
-            cell = end > 0 ? line.Substring(1, end - 1) : line.Substring(1);
-        }
-        else
-        {
-            int comma = line.IndexOf(',');
-            cell = comma >= 0 ? line.Substring(0, comma) : line;
+            // 首列带引号：先找闭合引号，分隔符在其后
+            int close = line.IndexOf('"', 1);
+            int after = close >= 0 ? close + 1 : line.Length;
+            int t = line.IndexOf('\t', after);
+            int c = line.IndexOf(',', after);
+            sep = t >= 0 ? t : c;
+            if (sep < 0)
+            {
+                name = Unquote(line.Trim());
+                source = "";
+                return;
+            }
+
+            name = Unquote(line.Substring(0, sep).Trim());
+            source = Unquote(line.Substring(sep + 1).Trim());
+            return;
         }
 
-        return cell.Trim();
+        sep = line.IndexOf('\t');
+        if (sep < 0) sep = line.IndexOf(',');
+        if (sep < 0)
+        {
+            name = line.Trim();
+            source = "";
+            return;
+        }
+
+        name = line.Substring(0, sep).Trim();
+        source = Unquote(line.Substring(sep + 1).Trim());
+    }
+
+    static string Unquote(string s)
+    {
+        if (s.Length >= 2 && s[0] == '"' && s[s.Length - 1] == '"')
+            return s.Substring(1, s.Length - 2).Trim();
+        return s;
+    }
+
+    // 合并出处时判断「；」分隔的段里是否已有完全相同的段
+    static bool HasSourceSegment(string merged, string segment)
+    {
+        foreach (string part in merged.Split('；'))
+            if (string.Equals(part.Trim(), segment.Trim(), StringComparison.Ordinal))
+                return true;
+        return false;
     }
 
     static bool IsHeaderCell(string s)
@@ -988,7 +1082,8 @@ public class AnimPreviewWindow : EditorWindow
         m_NameStyle = new GUIStyle(EditorStyles.label)
         {
             alignment = TextAnchor.MiddleLeft,
-            clipping = TextClipping.Clip
+            clipping = TextClipping.Clip,
+            richText = true // 已用行的绿色 ✓ 前缀
         };
         m_YesStyle = new GUIStyle(EditorStyles.miniLabel)
         {
@@ -1003,6 +1098,10 @@ public class AnimPreviewWindow : EditorWindow
         m_WarnStyle = new GUIStyle(EditorStyles.whiteMiniLabel)
         {
             normal = { textColor = new Color(1f, 0.42f, 0.42f) }
+        };
+        m_SrcStyle = new GUIStyle(EditorStyles.whiteMiniLabel)
+        {
+            normal = { textColor = new Color(0.45f, 0.95f, 0.55f) }
         };
     }
 
@@ -1095,9 +1194,17 @@ public class AnimPreviewWindow : EditorWindow
             : "未选择动作 — 右侧列表单击开始";
         GUI.Label(new Rect(rect.x + 8, rect.y + 6, rect.width - 16, 20), title,
             EditorStyles.whiteMiniLabel);
+        float subY = rect.y + 26;
+        string src = m_Selected != null ? MarkSource(m_Selected.Name) : null;
+        if (src != null)
+        {
+            // 已用动作：标题下绿色小字显示出处
+            GUI.Label(new Rect(rect.x + 8, subY, rect.width - 16, 18), src, m_SrcStyle);
+            subY += 18;
+        }
         string bindWarn = BindingWarnText();
         if (bindWarn != null)
-            GUI.Label(new Rect(rect.x + 8, rect.y + 26, rect.width - 16, 18), bindWarn, m_WarnStyle);
+            GUI.Label(new Rect(rect.x + 8, subY, rect.width - 16, 18), bindWarn, m_WarnStyle);
         DrawSlotTag(rect, m_P1, m_ShowP1, "玩家1(男)");
         DrawSlotTag(rect, m_P2, m_ShowP2, "玩家2(女)");
         GUI.Label(new Rect(rect.x + 8, rect.yMax - 22, rect.width - 16, 16),
@@ -1253,10 +1360,18 @@ public class AnimPreviewWindow : EditorWindow
         GUILayout.EndHorizontal();
         if (m_MarkNames.Count > 0)
         {
-            string markInfo = $"清单 {m_MarkHit}/{m_MarkNames.Count} · {Path.GetFileName(m_MarkPath)}";
-            if (m_MarkHit < m_MarkNames.Count)
-                markInfo += "（部分名字未找到，导入时已提示）";
-            GUILayout.Label(markInfo, EditorStyles.miniLabel);
+            string line = m_MarkRowCount > m_MarkNames.Count
+                ? $"清单 {m_MarkNames.Count} 个（{m_MarkRowCount} 行）· 已用 {m_MarkUsed}"
+                : $"清单 {m_MarkNames.Count} 个 · 已用 {m_MarkUsed}";
+            GUILayout.Label(line, EditorStyles.miniLabel);
+            int mu = GUILayout.Toolbar(m_MarkUseFilter, new[] { "全部", "已用", "未用" },
+                EditorStyles.miniButton, GUILayout.Height(16));
+            if (mu != m_MarkUseFilter)
+            {
+                m_MarkUseFilter = mu;
+                RebuildFilter();
+                Repaint();
+            }
         }
 
         GUILayout.BeginHorizontal();
@@ -1310,7 +1425,18 @@ public class AnimPreviewWindow : EditorWindow
                     EditorGUI.DrawRect(row, new Color(1f, 1f, 1f, 0.06f));
 
                 string label = e.CnName != null ? e.Name + "（" + e.CnName + "）" : e.Name;
-                GUI.Label(new Rect(row.x + 6, row.y, row.width - 126, row.height), label, m_NameStyle);
+                string src = MarkSource(e.Name);
+                if (src != null)
+                {
+                    // 已用：绿色 ✓ 前缀，悬停 tooltip 显示出处全文
+                    GUI.Label(new Rect(row.x + 6, row.y, row.width - 126, row.height),
+                        new GUIContent("<color=#7BD88F>✓ </color>" + label, src), m_NameStyle);
+                }
+                else
+                {
+                    GUI.Label(new Rect(row.x + 6, row.y, row.width - 126, row.height),
+                        label, m_NameStyle);
+                }
                 // 分类标签（灰字，跟在名称后、性别徽章前）
                 GUI.Label(new Rect(row.xMax - 118, row.y, 56, row.height),
                     e.Category ?? "", EditorStyles.centeredGreyMiniLabel);
