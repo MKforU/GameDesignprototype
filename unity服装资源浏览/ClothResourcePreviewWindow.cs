@@ -126,6 +126,13 @@ namespace GameEditor
         ClothReleaseData _release;
         int _releaseFilter;   // 0全部 1仅已投放 2仅未投放
         int _starFilter = -1;   // -1=全部，0..4 = t_item.f_LabelType（0未配置 1二星 2三星 3四星 4五星）
+
+        // ---- 已选服装去向表（CSV）----
+        ClothSelectionData _selection;
+        int _selFilter;         // 0全部 1仅已选 2未选
+        int _selCount;
+        int _selDest;
+        int _selPending;
         int _relReleased;
         int _relUnreleased;
         int _relOut;
@@ -175,7 +182,7 @@ namespace GameEditor
         public static void OpenWindow()
         {
             var win = GetWindow<ClothResourcePreviewWindow>("服装资源预览");
-            win.minSize = new Vector2(940f, 720f);
+            win.minSize = new Vector2(1060f, 720f);
             win.Rebuild();
         }
 
@@ -186,6 +193,7 @@ namespace GameEditor
             m_LastEditorTick = EditorApplication.timeSinceStartup;
             EditorApplication.update += OnEditorUpdate;
             _release = ClothReleaseData.LoadCache();
+            _selection = ClothSelectionData.LoadCache();
         }
 
         void OnDisable()
@@ -503,6 +511,13 @@ namespace GameEditor
                 if (keyword.Length > 0 && !MatchKeyword(e, keyword)) continue;
                 if (_starFilter >= 0 && e.Label != _starFilter) continue;
 
+                if (_selFilter > 0 && _selection != null)
+                {
+                    var picked = _selection.IsSelected(e.Id);
+                    if (_selFilter == 1 && !picked) continue;
+                    if (_selFilter == 2 && picked) continue;
+                }
+
                 if (_releaseFilter > 0 && _release != null)
                 {
                     var rel = _release.Get(e.Id);
@@ -554,6 +569,7 @@ namespace GameEditor
             }
 
             RefreshReleaseCounts();
+            RefreshSelCounts();
         }
 
         void RefreshReleaseCounts()
@@ -829,6 +845,21 @@ namespace GameEditor
                     GUILayout.Width(84f)))
                 ImportReleaseTable();
 
+            if (_selection != null)
+            {
+                var newSel = EditorGUILayout.Popup(_selFilter, new[] { "已选:全部", "仅已选", "未选" },
+                    EditorStyles.toolbarPopup, GUILayout.Width(84f));
+                if (newSel != _selFilter)
+                {
+                    _selFilter = newSel;
+                    ApplyFilter();
+                }
+            }
+
+            if (GUILayout.Button(_selection == null ? "导已选CSV" : "重导已选", EditorStyles.toolbarButton,
+                    GUILayout.Width(76f)))
+                ImportSelectionCsv();
+
             if (!string.IsNullOrEmpty(_search) && GUILayout.Button("✕", EditorStyles.toolbarButton, GUILayout.Width(24f)))
             {
                 _search = "";
@@ -1024,6 +1055,70 @@ namespace GameEditor
             return result;
         }
 
+        void RefreshSelCounts()
+        {
+            _selCount = 0;
+            _selDest = 0;
+            _selPending = 0;
+            if (_selection == null)
+                return;
+            foreach (var e in _entries)
+            {
+                var ent = _selection.Get(e.Id);
+                if (ent == null)
+                    continue;
+                _selCount++;
+                if (!string.IsNullOrEmpty(ent.dest))
+                    _selDest++;
+                else
+                    _selPending++;
+            }
+        }
+
+        string SelectionText(uint id)
+        {
+            if (_selection == null)
+                return "未导入已选表";
+            var ent = _selection.Get(id);
+            if (ent == null)
+                return "不在已选表中";
+            return string.IsNullOrEmpty(ent.dest) ? "已选（去向未定）" : $"已选（去向：{ent.dest}）";
+        }
+
+        static string TruncDest(string dest)
+        {
+            if (string.IsNullOrEmpty(dest))
+                return "";
+            return dest.Length > 8 ? dest.Substring(0, 8) + "…" : dest;
+        }
+
+        /// <summary>套装已选成员的去向汇总：没人已选→null；全未定→「去向：未定」；否则去重拼接。</summary>
+        string SuiteDestSummary(SuitGroup group)
+        {
+            if (_selection == null)
+                return null;
+            var selN = 0;
+            var dests = new List<string>();
+            foreach (var m in group.Entries)
+            {
+                var ent = _selection.Get(m.Id);
+                if (ent == null)
+                    continue;
+                selN++;
+                if (!string.IsNullOrEmpty(ent.dest) && !dests.Contains(ent.dest))
+                    dests.Add(ent.dest);
+            }
+
+            if (selN == 0)
+                return null;
+            if (dests.Count == 0)
+                return "去向：未定";
+            var text = string.Join("·", dests.Take(2).Select(TruncDest));
+            if (dests.Count > 2)
+                text += $" +{dests.Count - 2}";
+            return "去向：" + text;
+        }
+
         string ReleaseText(uint id)
         {
             if (_release == null)
@@ -1051,6 +1146,28 @@ namespace GameEditor
                 ApplyFilter();
                 Repaint();
                 ShowNotification(new GUIContent("投放表已导入 " + summary));
+            }
+            catch (Exception ex)
+            {
+                EditorUtility.DisplayDialog("导入失败", ex.Message, "确定");
+            }
+        }
+
+        void ImportSelectionCsv()
+        {
+            var last = EditorPrefs.GetString("ClothSelectionCsvPath", "");
+            var dir = string.IsNullOrEmpty(last) ? "" : (Path.GetDirectoryName(last) ?? "");
+            var path = EditorUtility.OpenFilePanel("导入已选服装去向记录（csv）", dir, "csv");
+            if (string.IsNullOrEmpty(path))
+                return;
+            try
+            {
+                var data = ClothSelectionData.Import(path, out var summary);
+                _selection = data;
+                EditorPrefs.SetString("ClothSelectionCsvPath", path);
+                ApplyFilter();
+                Repaint();
+                ShowNotification(new GUIContent("已选表已导入 " + summary));
             }
             catch (Exception ex)
             {
@@ -1116,7 +1233,7 @@ namespace GameEditor
         {
             if (!TryGetReleaseBadge(entry, group, out var text, out var style))
                 return;
-            GUI.Label(new Rect(rect.xMax - 56f, rect.y, 52f, 16f), text, style);
+            GUI.Label(new Rect(rect.xMax - 52f, rect.y, 48f, 16f), text, style);
         }
 
         bool TryGetReleaseBadge(ClothEntry entry, SuitGroup group, out string text, out GUIStyle style)
@@ -1203,13 +1320,24 @@ namespace GameEditor
             else
                 GUI.Label(iconRect, "无图标", EditorStyles.centeredGreyMiniLabel);
             if (m_TryOn != null && m_TryOn.ItemHasEffects(e.Id))
+            if (_selection != null && _selection.IsSelected(e.Id))
+                GUI.Label(new Rect(iconRect.xMax - 32f, iconRect.y + 2f, 30f, 14f), "已选", _badgeReleased);
                 GUI.Label(new Rect(iconRect.x + 2f, iconRect.y + 2f, 22f, 14f), "FX", _badgePartial);
 
             var nameRect = new Rect(rect.x + 4f, rect.y + 86f, rect.width - 8f, 30f);
             GUI.Label(nameRect, string.IsNullOrEmpty(e.Name) ? e.Id.ToString() : e.Name, _cellNameStyle);
 
             var metaRect = new Rect(rect.x + 4f, rect.y + 104f, rect.width - 8f, 24f);
-            GUI.Label(metaRect, $"{PartName(e.Type2)} · {e.Id}\n无套装", _cellMetaStyle);
+            var meta1 = $"{PartName(e.Type2)} · {e.Id}";
+            var meta2 = "无套装";
+            if (_selection != null)
+            {
+                var ent = _selection.Get(e.Id);
+                if (ent != null)
+                    meta2 = string.IsNullOrEmpty(ent.dest) ? "去向未定" : "去向：" + TruncDest(ent.dest);
+            }
+
+            GUI.Label(metaRect, meta1 + "\n" + meta2, _cellMetaStyle);
 
             if (GUI.Button(rect, GUIContent.none, GUIStyle.none))
             {
@@ -1228,7 +1356,7 @@ namespace GameEditor
 
             var bg = new Rect(rect.x, rect.y, rect.width, 16f);
             EditorGUI.DrawRect(bg, new Color(0.55f, 0.40f, 0.08f, 0.55f));
-            GUI.Label(bg, worn ? "套装·已穿" : "套装", _badgeStyle);
+            GUI.Label(bg, worn ? "套装✓" : "套装", _badgeStyle);
             DrawReleaseBadge(rect, card.Entry, group);
 
             var iconRect = new Rect(rect.x + 6f, rect.y + 20f, rect.width - 12f, 64f);
@@ -1246,13 +1374,29 @@ namespace GameEditor
                     GUI.Label(new Rect(iconRect.x + 2f, iconRect.y + 2f, 22f, 14f), "FX", _badgePartial);
                     break;
                 }
+            if (_selection != null)
+            {
+                var selN = 0;
+                foreach (var member in group.Entries)
+                {
+                    if (_selection.IsSelected(member.Id))
+                        selN++;
+                }
+
+                if (selN > 0 && selN >= group.Entries.Count)
+                    GUI.Label(new Rect(iconRect.xMax - 32f, iconRect.y + 2f, 30f, 14f), "已选", _badgeReleased);
+                else if (selN > 0)
+                    GUI.Label(new Rect(iconRect.xMax - 48f, iconRect.y + 2f, 46f, 14f), $"部分{selN}/{group.Entries.Count}", _badgePartial);
+            }
             }
 
             var nameRect = new Rect(rect.x + 4f, rect.y + 86f, rect.width - 8f, 30f);
             GUI.Label(nameRect, string.IsNullOrEmpty(group.Name) ? group.Id : group.Name, _cellNameStyle);
 
             var metaRect = new Rect(rect.x + 4f, rect.y + 104f, rect.width - 8f, 24f);
-            GUI.Label(metaRect, $"{group.Id} · {group.Entries.Count}件 · {group.PartsSummary}", _cellMetaStyle);
+            var metaLine = $"{group.Id} · {group.Entries.Count}件";
+            var destLine = SuiteDestSummary(group);
+            GUI.Label(metaRect, destLine == null ? metaLine + " · " + group.PartsSummary : metaLine + "\n" + destLine, _cellMetaStyle);
 
             if (GUI.Button(rect, GUIContent.none, GUIStyle.none))
             {
@@ -1494,6 +1638,12 @@ namespace GameEditor
             {
                 GUILayout.Label("投放状态", GUILayout.Width(120f));
                 GUILayout.Label(ReleaseText(selected.Id), EditorStyles.label);
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Label("已选状态", GUILayout.Width(120f));
+                GUILayout.Label(SelectionText(selected.Id), EditorStyles.label);
             }
 
             // 商城配置
@@ -1763,6 +1913,8 @@ namespace GameEditor
             GUILayout.Label($"显示 {_viewCards.Count} 张卡片（命中 {_viewList.Count} 件）· 套装组 {_groupList.Count} · 校验 {_issues.Count}", EditorStyles.miniLabel);
             if (_release != null)
                 GUILayout.Label($"投放: 已投{_relReleased} · 未投{_relUnreleased} · 表外{_relOut}（{_release.ImportTime}导入）", EditorStyles.miniLabel);
+            if (_selection != null)
+                GUILayout.Label($"已选: {_selCount} · 去向已定{_selDest} · 未定{_selPending}", EditorStyles.miniLabel);
             GUILayout.Label($"上次换装 {_lastWearMs}ms", EditorStyles.miniLabel);
             GUILayout.FlexibleSpace();
             if (!string.IsNullOrEmpty(selectedName))
